@@ -1,0 +1,18 @@
+# systemd unit (Raspberry Pi / Linux). Install:
+#   sudo cp boseradio.service /etc/systemd/system/
+#   sudo systemctl enable --now boseradio
+# Make a second copy as boseradio-buttons.service with
+#   ExecStart=/usr/bin/node /opt/bose-soundtouch/button_listener.js
+[Unit]
+Description=Bose SoundTouch local radio proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/bose-soundtouch/bose_radio.py serve
+WorkingDirectory=/opt/bose-soundtouch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

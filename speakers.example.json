@@ -1,0 +1,4 @@
+{
+  "Living Room": { "ip": "192.168.1.41", "model": "SoundTouch 10", "deviceID": "AABBCCDDEEFF" },
+  "Kitchen":     { "ip": "192.168.1.42", "model": "SoundTouch 10", "deviceID": "112233445566" }
+}

@@ -1,0 +1,5 @@
+{
+  "groove-salad": { "url": "http://ice1.somafm.com/groovesalad-128-mp3", "note": "SomaFM Groove Salad (direct stream example)" },
+  "drone-zone":   { "url": "http://ice1.somafm.com/dronezone-128-mp3",   "note": "SomaFM Drone Zone (direct stream example)" },
+  "newsradio":    { "url": "tunein:s24939", "note": "Example TuneIn station id - replace with your favorites (tunein.com URL ends in /sXXXXX)" }
+}
