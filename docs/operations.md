@@ -126,7 +126,7 @@ par le listener des boutons. Éviter les commandes répétées rapidement.
 ## Boutons et diagnostic
 
 Les stations jouées sont définies dans `config/presets.json`, avec un bloc `default`
-et éventuellement un bloc par nom d'enceinte. Le bouton **Gérer les presets** de
+et éventuellement un bloc par nom d'enceinte. Le bouton **Presets** de
 l’interface permet de modifier ces listes sans redémarrage. Une entrée absente
 d’un bloc individuel reprend le preset global ; une valeur `null` le laisse sans
 affectation pour cette enceinte. Un bouton doit également avoir une

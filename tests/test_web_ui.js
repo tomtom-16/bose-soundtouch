@@ -116,7 +116,7 @@ function render(){vm.runInContext('render(status)',context)}
   await get('stationsOpen').onclick();
   assert.equal(get('stationsSettings').open,true);
   assert.equal(get('stationList').children.length,1);
-  get('stationList').children[0].children[2].onclick();
+  get('stationList').children[0].children[1].onclick();
   assert.equal(get('stationName').value,'One');
   get('stationName').value='Renamed';
   await get('stationForm').onsubmit({preventDefault(){}});
@@ -126,12 +126,12 @@ function render(){vm.runInContext('render(status)',context)}
   const beforeCancel=writes.length;
   get('stationCancel').onclick();
   assert.equal(writes.length,beforeCancel);
-  await get('stationList').children[0].children[3].onclick();
+  await get('stationList').children[0].children[2].onclick();
   assert.equal(get('stationDelete').open,true);
   assert.ok(get('stationDeleteText').textContent.includes('Living (preset(s) 1)'));
   get('stationDeleteCancel').onclick();
   assert.equal(writes.length,beforeCancel);
-  await get('stationList').children[0].children[3].onclick();
+  await get('stationList').children[0].children[2].onclick();
   await get('stationDeleteConfirm').onclick();
   assert.deepEqual(JSON.parse(writes.at(-1).body),{action:'delete',id:'one',confirmed:true,revision:'revision-1'});
   assert.equal(get('stationDelete').open,false);

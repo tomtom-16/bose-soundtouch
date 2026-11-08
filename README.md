@@ -68,6 +68,8 @@ coupe pas sa lecture et conserve ses presets dans le fichier pour un éventuel
 réajout avec le même nom. **Annuler** ferme sans enregistrer.
 **Stations** ouvre le catalogue : ajouter une station, modifier son nom affiché et
 sa source (URL HTTP(S) du flux audio ou `tunein:s12345`), ou la supprimer.
+Chaque ligne affiche le titre puis les icônes de modification et de suppression ;
+la source est visible uniquement dans le formulaire d’ajout ou de modification.
 Le nom affiché peut changer sans modifier l’identifiant interne ni les presets.
 Une confirmation de suppression liste les affectations globales, individuelles et
 les enceintes concernées, en tenant compte de l’héritage. La suppression nettoie
@@ -78,7 +80,7 @@ invite à recharger et confirmer à nouveau. Ces opérations ne lancent ni n’a
 la lecture ; un flux déjà ouvert peut continuer, mais la station supprimée ne peut
 plus être relancée. Les modifications s’appliquent sans redémarrer les services.
 
-Le bouton **Gérer les presets**, à côté de **Stations**, ouvre l’éditeur des six
+Le bouton **Presets**, à côté de **Stations**, ouvre l’éditeur des six
 presets. Choisir **Liste globale — toutes les enceintes** pour définir la liste
 commune, ou une enceinte pour personnaliser ses boutons. Chaque preset individuel
 peut reprendre la liste globale, choisir une station ou rester **Sans affectation**
