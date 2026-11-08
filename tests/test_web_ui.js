@@ -14,6 +14,8 @@ class Element{
   add(o){this.options.push(o);if(this.options.length===1)this.value=o.value}
   appendChild(c){this.children.push(c);c.parent=this}
   remove(){this.parent.children=this.parent.children.filter(c=>c!==this)}
+  focus(){}
+  hidePopover(){this.open=false}
   showModal(){this.open=true}
   close(){this.open=false}
   replaceChildren(){this.children=[];this.options=[];this.value=''}
@@ -32,6 +34,7 @@ const context=vm.createContext({document:{getElementById:get,createElement:()=>n
   Option:function(textContent,value){Object.assign(this,{textContent,value})},
   fetch:async (p,options)=>{requests.push(p);if(options)writes.push(options);
     return {ok:!fail,json:async()=>fail?{ok:false,error:'test failure'}:
+      p==='/api/stations'?{stations:{one:{note:'One',url:'https://example.com/live'}},revision:'revision-1',usages:{one:{direct:[{scope:'default',numbers:['1']}],effective:[{scope:'Living',numbers:['1']}]}}}:
       p==='/api/speakers'?{ok:true,speakers:speakerConfig}:
       p==='/api/presets'?JSON.parse(JSON.stringify({presets:status.presets,stations:status.stations,
         speakers:Object.fromEntries(status.speakers.map(s=>[s.name,{ip:s.ip}]))})):
@@ -51,12 +54,12 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('target').children.length,2);
   assert.equal(get('target').children[0].attributes['aria-pressed'],'true');
   assert.equal(get('stop').hidden,false);
-  assert.equal(get('hTitle').textContent,'One');
+  assert.equal(get('hTitle').textContent,'one');
   get('target').children[1].onclick();
   assert.equal(get('target').children[0].attributes['aria-pressed'],'false');
   assert.equal(get('target').children[1].attributes['aria-pressed'],'true');
   assert.equal(get('grid').children[0].id,'st-two');
-  assert.equal(get('hTitle').textContent,'Two');
+  assert.equal(get('hTitle').textContent,'two');
   assert.equal(get('vol').value,30);
   await get('grid').children[0].onclick();
   assert.ok(requests.includes('/api/play/two?speaker=192.0.2.2&volume=30'));
@@ -79,7 +82,7 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('targetAll').disabled,false);
   assert.ok(get('toast').textContent.includes('test failure'));
   fail=false;
-  await get('settingsOpen').onclick();
+  await get('speakersOpen').onclick();
   assert.equal(get('settings').open,true);
   const row=get('speakerEditors').children[0];
   row.querySelector('[name="name"]').value='Salon <test>';
@@ -92,7 +95,7 @@ function render(){vm.runInContext('render(status)',context)}
   assert.deepEqual(JSON.parse(writes.at(-1).body).speakers,[{
     original_name:'Living',name:'Salon <test>',ip:'192.0.2.1',deviceID:'AABBCCDDEEFF',model:''}]);
   assert.equal(get('settings').open,false);
-  await get('settingsOpen').onclick();
+  await get('speakersOpen').onclick();
   fail=true;
   await get('settingsForm').onsubmit({preventDefault(){}});
   assert.equal(get('settings').open,true);
@@ -102,6 +105,34 @@ function render(){vm.runInContext('render(status)',context)}
   get('settingsCancel').onclick();
   assert.equal(get('settings').open,false);
   fail=false;
+  await get('stationsOpen').onclick();
+  assert.equal(get('stationsSettings').open,true);
+  assert.equal(get('stationList').children.length,1);
+  get('stationList').children[0].children[2].onclick();
+  assert.equal(get('stationName').value,'One');
+  get('stationName').value='Renamed';
+  await get('stationForm').onsubmit({preventDefault(){}});
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{action:'save',id:'one',name:'Renamed',url:'https://example.com/live',revision:'revision-1'});
+  get('stationAdd').onclick();
+  assert.equal(get('stationName').value,'');
+  const beforeCancel=writes.length;
+  get('stationCancel').onclick();
+  assert.equal(writes.length,beforeCancel);
+  await get('stationList').children[0].children[3].onclick();
+  assert.equal(get('stationDelete').open,true);
+  assert.ok(get('stationDeleteText').textContent.includes('Living (preset(s) 1)'));
+  get('stationDeleteCancel').onclick();
+  assert.equal(writes.length,beforeCancel);
+  await get('stationList').children[0].children[3].onclick();
+  await get('stationDeleteConfirm').onclick();
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{action:'delete',id:'one',confirmed:true,revision:'revision-1'});
+  assert.equal(get('stationDelete').open,false);
+  get('stationAdd').onclick();fail=true;
+  await get('stationForm').onsubmit({preventDefault(){}});
+  assert.equal(get('stationsError').textContent,'test failure');
+  assert.equal(get('stationFields').disabled,false);
+  assert.equal(get('stationForm').hidden,false);
+  fail=false;get('stationsClose').onclick();
   get('target').children[1].onclick();
   await get('presetsOpen').onclick();
   assert.equal(get('presetsSettings').open,true);
@@ -162,5 +193,5 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('presetsReset').hidden,true);
   assert.equal(get('presetsScope').options.length,1);
   assert.ok(!script.includes('Les presets seront configurables dans une prochaine étape'));
-  console.log('Web UI: playback, global/individual preset editing, inheritance, cancellation, save errors and speaker settings passed');
+  console.log('Web UI: playback, station catalogue CRUD, deletion confirmation, presets, inheritance and speaker settings passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

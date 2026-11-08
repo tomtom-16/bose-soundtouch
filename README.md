@@ -52,7 +52,8 @@ volume individuel de chaque enceinte. Lancer une station ou arrêter la lecture
 sur une enceinte seule la détache de son groupe éventuel ; si elle était maître,
 le groupe est dissous.
 
-Le bouton **⚙** en haut ouvre la configuration des enceintes : ajouter, modifier
+Le bouton **⚙** en haut ouvre un sous-menu **Stations / Enceintes**.
+**Enceintes** ouvre la configuration des enceintes : ajouter, modifier
 ou retirer une enceinte, puis **Enregistrer**. Les champs sont le nom local,
 l'adresse IPv4, le `deviceID` Bose (12 caractères hexadécimaux) et le modèle
 facultatif. Le `deviceID` se trouve dans `http://<IP-enceinte>:8090/info`.
@@ -63,6 +64,18 @@ Renommer une enceinte conserve ses presets individuels et son éventuel rôle
 `master` en mettant aussi à jour les JSON concernés. Retirer une enceinte ne
 coupe pas sa lecture et conserve ses presets dans le fichier pour un éventuel
 réajout avec le même nom. **Annuler** ferme sans enregistrer.
+**Stations** ouvre le catalogue : ajouter une station, modifier son nom affiché et
+sa source (URL HTTP(S) du flux audio ou `tunein:s12345`), ou la supprimer.
+Le nom affiché peut changer sans modifier l’identifiant interne ni les presets.
+Une confirmation de suppression liste les affectations globales, individuelles et
+les enceintes concernées, en tenant compte de l’héritage. La suppression nettoie
+également les affectations conservées d’anciennes enceintes. Les presets individuels
+concernés deviennent **Sans affectation**, sans reprendre la liste globale.
+Si la configuration change avant l’enregistrement ou la confirmation, une erreur
+invite à recharger et confirmer à nouveau. Ces opérations ne lancent ni n’arrêtent
+la lecture ; un flux déjà ouvert peut continuer, mais la station supprimée ne peut
+plus être relancée. Les modifications s’appliquent sans redémarrer les services.
+
 Le bouton **Gérer les presets**, à côté de **Stations**, ouvre l’éditeur des six
 presets. Choisir **Liste globale — toutes les enceintes** pour définir la liste
 commune, ou une enceinte pour personnaliser ses boutons. Chaque preset individuel

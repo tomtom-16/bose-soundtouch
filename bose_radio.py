@@ -38,6 +38,8 @@ import xml.etree.ElementTree as ET
 import urllib.parse
 import ipaddress
 import tempfile
+import hashlib
+import uuid
 
 # Windows consoles default to cp1252 which can't print ▶/■ — force UTF-8.
 for _s in (sys.stdout, sys.stderr):
@@ -176,6 +178,78 @@ def configure_presets(changes):
             result[scope] = dict(mapping)
         save_json(PRESETS_PATH, result)
         return result
+
+def station_snapshot():
+    """Caller holds the configuration lock; revision protects all related edits."""
+    stations = load_json(STATIONS_PATH, {})
+    presets = load_json(PRESETS_PATH, {})
+    speakers = load_json(SPEAKERS_PATH, {})
+    revision = hashlib.sha256(json.dumps([stations, presets, speakers], sort_keys=True).encode()).hexdigest()
+    usages = {}
+    for station_id in stations:
+        direct = [{"scope": scope, "numbers": [n for n, value in mapping.items() if value == station_id]}
+                  for scope, mapping in presets.items() if station_id in mapping.values()]
+        effective = []
+        for name in speakers:
+            mapping = {**presets.get("default", {}), **presets.get(name, {})}
+            numbers = [n for n, value in mapping.items() if value == station_id]
+            if numbers: effective.append({"scope": name, "numbers": numbers})
+        usages[station_id] = {"direct": direct, "effective": effective}
+    return {"stations": stations, "usages": usages, "revision": revision}
+
+
+def configure_station(payload):
+    with _CONFIG_LOCK:
+        snapshot = station_snapshot()
+        if payload.get("revision") != snapshot["revision"]:
+            raise ValueError("Configuration modifiée : rechargez le catalogue et confirmez à nouveau.")
+        stations = dict(snapshot["stations"])
+        station_id = payload.get("id")
+        if station_id is not None and (not isinstance(station_id, str) or station_id not in stations):
+            raise ValueError("Station inconnue.")
+        action = payload.get("action")
+        changes = []
+        if action == "save":
+            name, url = payload.get("name"), payload.get("url")
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
+                raise ValueError("Nom requis (100 caractères maximum).")
+            if not isinstance(url, str) or len(url) > 4096:
+                raise ValueError("Source invalide.")
+            name, url = name.strip(), url.strip()
+            parsed = urllib.parse.urlsplit(url)
+            if not (re.fullmatch(r"tunein:s[0-9]+", url) or
+                    (parsed.scheme in ("http", "https") and parsed.hostname and
+                     not parsed.username and not parsed.password and not any(c.isspace() for c in url))):
+                raise ValueError("Utilisez une URL HTTP(S) ou une source tunein:s12345.")
+            for key, value in stations.items():
+                label = value.get("note", key) if isinstance(value, dict) else key
+                if key != station_id and label.casefold() == name.casefold():
+                    raise ValueError("Une station porte déjà ce nom.")
+            if station_id is None: station_id = "station-" + uuid.uuid4().hex[:12]
+            previous = stations.get(station_id, {})
+            stations[station_id] = {**(previous if isinstance(previous, dict) else {}), "note": name, "url": url}
+        elif action == "delete" and station_id is not None:
+            if payload.get("confirmed") is not True:
+                raise ValueError("Confirmation de suppression requise.")
+            presets = load_json(PRESETS_PATH, {})
+            updated = {scope: {n: (None if value == station_id else value)
+                              for n, value in mapping.items() if scope != "default" or value != station_id}
+                       for scope, mapping in presets.items()}
+            if updated != presets: changes.append((PRESETS_PATH, updated, presets))
+            del stations[station_id]
+        else:
+            raise ValueError("Action invalide.")
+        changes.append((STATIONS_PATH, stations, snapshot["stations"]))
+        written = []
+        try:
+            for path, value, previous in changes:
+                save_json(path, value)
+                written.append((path, previous))
+        except OSError:
+            for path, previous in reversed(written): save_json(path, previous)
+            raise
+        return stations
+
 
 def get_config():
     cfg = load_json(CONFIG_PATH, {})
@@ -559,6 +633,11 @@ background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;
 dialog{background:var(--bg);color:var(--txt);border:1px solid var(--card2);border-radius:20px;
 padding:20px;width:calc(100% - 24px);max-width:480px;max-height:90dvh;overflow:auto}
 dialog::backdrop{background:#000a}
+#settingsMenu{position:fixed;inset:65px 16px auto auto;margin:0;padding:8px;background:var(--bg);color:var(--txt);border:1px solid var(--card2);border-radius:14px}
+#settingsMenu .action{display:block;width:100%;text-align:left;margin:3px 0}
+.station-source{overflow-wrap:anywhere;font-size:13px;color:var(--dim)}
+#stationsError{color:#fca5a5}
+#stationSave{background:var(--accD)}
 .settings-head,.settings-actions{display:flex;justify-content:space-between;align-items:center;gap:10px}
 h2{font-size:20px;margin:0}
 .hint{color:var(--dim);font-size:13px;line-height:1.5}
@@ -574,7 +653,27 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 .action:disabled{opacity:.5;cursor:wait}
 </style></head><body>
 <header><h1>Bose Radio</h1><div class="header-actions"><div id="conn"><span class="dot"></span><span id="connTxt">…</span></div>
-<button id="settingsOpen" class="action" aria-label="Configurer les enceintes" title="Configurer les enceintes">⚙</button></div></header>
+<button id="settingsOpen" class="action" aria-label="Réglages" title="Réglages" popovertarget="settingsMenu">⚙</button>
+<div id="settingsMenu" popover><button id="stationsOpen" class="action">Stations</button><button id="speakersOpen" class="action">Enceintes</button></div></div></header>
+
+<dialog id="stationsSettings" aria-labelledby="stationsTitle">
+<div class="settings-head"><h2 id="stationsTitle">Stations</h2><button type="button" id="stationsClose" class="action" aria-label="Fermer">✕</button></div>
+<div id="stationList"></div>
+<button type="button" id="stationAdd" class="action">+ Ajouter une station</button>
+<form id="stationForm" hidden>
+<fieldset id="stationFields" class="speaker-editor">
+<label>Nom affiché<input id="stationName" required maxlength="100" autocomplete="off"></label>
+<label>URL du flux ou source TuneIn<input id="stationUrl" required maxlength="4096" placeholder="https://… ou tunein:s12345" autocomplete="off"></label>
+<p class="hint">Modifier une station conserve ses presets. Utilisez l’URL du flux audio, plutôt que celle du site de la radio.</p>
+<div class="settings-actions"><button type="button" id="stationCancel" class="action">Annuler</button><button id="stationSave" type="submit" class="action">Enregistrer</button></div>
+</fieldset></form>
+<p id="stationsError" role="alert"></p>
+</dialog>
+<dialog id="stationDelete" aria-labelledby="stationDeleteTitle">
+<h2 id="stationDeleteTitle">Supprimer la station ?</h2>
+<p id="stationDeleteText" style="white-space:pre-line"></p>
+<div class="settings-actions"><button type="button" id="stationDeleteCancel" class="action">Annuler</button><button type="button" id="stationDeleteConfirm" class="action remove-speaker">Supprimer</button></div>
+</dialog>
 
 <dialog id="settings" aria-labelledby="settingsTitle">
 <form id="settingsForm">
@@ -649,15 +748,15 @@ function buildTiles(stations){
     b.style.background=`linear-gradient(135deg,hsl(${h} 45% 30%),hsl(${h} 55% 16%))`;
     b.innerHTML='<span class="badge">▶ PLAYING</span><span class="preset"></span><span class="nm"></span><span class="nt"></span>';
     b.querySelector('.preset').textContent=s.numbers.length?'Preset '+s.numbers.join(' / '):'Sans preset';
-    b.querySelector('.nm').textContent=pretty(s.id);
-    b.querySelector('.nt').textContent=s.note||'Internet radio';
+    b.querySelector('.nm').textContent=s.note||pretty(s.id);
+    b.querySelector('.nt').textContent='Internet radio';
     b.onclick=async()=>{if(busy)return;busy=true;touch();
       b.querySelector('.nm').textContent='Starting…';
       disableTargets(true);
       try{await api('/api/play/'+encodeURIComponent(s.id)+targetQuery()+'&volume='+$('vol').value);
-        toast(pretty(s.id)+' → '+targetLabel())}
+        toast((s.note||pretty(s.id))+' → '+targetLabel())}
       catch(e){toast('Erreur : '+e.message)}
-      finally{b.querySelector('.nm').textContent=pretty(s.id);busy=false;disableTargets(false);refresh()}};
+      finally{b.querySelector('.nm').textContent=s.note||pretty(s.id);busy=false;disableTargets(false);refresh()}};
     $('grid').appendChild(b)});
 }
 function buildSpeakers(speakers){
@@ -706,7 +805,7 @@ function render(st){
   const playingStation=active.length&&active.every(s=>s.station===active[0].station)?active[0].station:null;
   $('hero').classList.toggle('live',live);
   $('stop').hidden=!live;
-  $('hTitle').textContent=live?(playingStation?pretty(playingStation):active.length>1?'Plusieurs sources':active[0].title||'En lecture'):'Off';
+  $('hTitle').textContent=live?(playingStation?(st.stations.find(s=>s.id===playingStation)?.note||pretty(playingStation)):active.length>1?'Plusieurs sources':active[0].title||'En lecture'):'Off';
   $('hSub').textContent=live?'En lecture : '+active.map(s=>s.name).join(', '):'Choisir une enceinte puis une station';
   st.stations.forEach(s=>$('st-'+s.id).classList.toggle('playing',live&&s.id===playingStation));
   st.speakers.forEach(s=>{const r=$('sp-'+s.ip);if(!r)return;
@@ -748,15 +847,16 @@ function closeSettings(){if(!settingsSaving)$('settings').close()}
 $('settingsClose').onclick=closeSettings;$('settingsCancel').onclick=closeSettings;
 $('settings').oncancel=e=>{if(settingsSaving)e.preventDefault()};
 $('speakerAdd').onclick=()=>addSpeakerEditor();
-$('settingsOpen').onclick=async()=>{
+$('speakersOpen').onclick=async()=>{
+  $('settingsMenu').hidePopover();
   if(busy)return;
-  $('settingsOpen').disabled=true;
+  $('speakersOpen').disabled=true;
   try{
     const config=await api('/api/speakers');$('speakerEditors').replaceChildren();
     Object.entries(config.speakers).forEach(([name,speaker])=>addSpeakerEditor(name,speaker));
     if(!Object.keys(config.speakers).length)addSpeakerEditor();
     $('settingsError').textContent='';$('settings').showModal();
-  }catch(e){toast('Erreur : '+e.message)}finally{$('settingsOpen').disabled=false}
+  }catch(e){toast('Erreur : '+e.message)}finally{$('speakersOpen').disabled=false}
 };
 $('settingsForm').onsubmit=async e=>{
   e.preventDefault();if(settingsSaving)return;
@@ -774,6 +874,68 @@ $('settingsForm').onsubmit=async e=>{
   finally{settingsSaving=false;$('settingsSave').disabled=false;$('speakerAdd').disabled=false;
     Array.from($('speakerEditors').children).forEach(row=>row.disabled=false)}
 };
+let stationConfig=null,stationEditing=null,stationDeleting=null,stationSaving=false;
+function stationLabel(id,value){return value&&typeof value==='object'?(value.note||pretty(id)):pretty(id)}
+function editStation(id=null){
+  stationEditing=id;
+  const value=id===null?null:stationConfig.stations[id];
+  $('stationName').value=id===null?'':stationLabel(id,value);
+  $('stationUrl').value=typeof value==='string'?value:value?.url||'';
+  $('stationForm').hidden=false;$('stationsError').textContent='';$('stationName').focus();
+}
+function renderStationList(){
+  $('stationList').replaceChildren();
+  if(!Object.keys(stationConfig.stations).length){
+    const empty=document.createElement('p');empty.className='hint';empty.textContent='Aucune station. Ajoutez votre première station.';$('stationList').appendChild(empty);
+  }
+  for(const [id,value] of Object.entries(stationConfig.stations)){
+    const row=document.createElement('fieldset');row.className='speaker-editor';
+    const name=document.createElement('strong');name.textContent=stationLabel(id,value);row.appendChild(name);
+    const source=document.createElement('p');source.className='station-source';source.textContent=typeof value==='string'?value:value.url;row.appendChild(source);
+    const edit=document.createElement('button');edit.type='button';edit.className='action';edit.textContent='Modifier';edit.disabled=stationSaving;
+    edit.onclick=()=>editStation(id);row.appendChild(edit);
+    const remove=document.createElement('button');remove.type='button';remove.className='action remove-speaker';remove.textContent='Supprimer';remove.disabled=stationSaving;
+    remove.onclick=async()=>{
+      try{
+        stationConfig=await api('/api/stations');renderStationList();
+        if(!Object.hasOwn(stationConfig.stations,id))throw new Error('Station déjà supprimée.');
+        stationDeleting=id;
+        const usage=stationConfig.usages[id];
+        const lines=['Supprimer « '+stationLabel(id,stationConfig.stations[id])+' » du catalogue ?'];
+        for(const item of usage.direct)lines.push((item.scope==='default'?'Liste globale':item.scope)+' : preset(s) '+item.numbers.join(', '));
+        if(usage.effective.length)lines.push('Enceintes concernées : '+usage.effective.map(item=>item.scope+' (preset(s) '+item.numbers.join(', ')+')').join(', '));
+        lines.push(usage.direct.length?'Ces affectations seront supprimées. Les presets individuels concernés resteront sans affectation.':'Cette station n’est affectée à aucun preset.');
+        $('stationDeleteText').textContent=lines.join('\\n');$('stationDelete').showModal();
+      }catch(e){$('stationsError').textContent=e.message}
+    };row.appendChild(remove);$('stationList').appendChild(row);
+  }
+}
+async function loadStations(){stationConfig=await api('/api/stations');renderStationList()}
+$('stationsOpen').onclick=async()=>{
+  if(busy)return;$('settingsMenu').hidePopover();
+  try{await loadStations();$('stationForm').hidden=true;$('stationsError').textContent='';$('stationsSettings').showModal()}
+  catch(e){toast('Erreur : '+e.message)}
+};
+$('stationsClose').onclick=()=>{if(!stationSaving)$('stationsSettings').close()};
+$('stationsSettings').oncancel=e=>{if(stationSaving)e.preventDefault()};
+$('stationAdd').onclick=()=>editStation();
+$('stationCancel').onclick=()=>{$('stationForm').hidden=true};
+$('stationDeleteCancel').onclick=()=>{if(!stationSaving)$('stationDelete').close()};
+$('stationDelete').oncancel=e=>{if(stationSaving)e.preventDefault()};
+async function writeStation(payload){
+  if(stationSaving)return;
+  stationSaving=true;$('stationsError').textContent='';$('stationFields').disabled=true;
+  $('stationAdd').disabled=true;$('stationDeleteConfirm').disabled=true;renderStationList();
+  try{
+    await api('/api/stations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,revision:stationConfig.revision})});
+    $('stationForm').hidden=true;toast(payload.action==='delete'?'Station supprimée':'Station enregistrée');
+    await loadStations();await refresh();
+  }catch(e){$('stationsError').textContent=e.message;try{await loadStations()}catch{}}
+  finally{stationSaving=false;$('stationFields').disabled=false;$('stationAdd').disabled=false;
+    $('stationDeleteConfirm').disabled=false;$('stationDelete').close();renderStationList()}
+}
+$('stationForm').onsubmit=e=>{e.preventDefault();return writeStation({action:'save',id:stationEditing,name:$('stationName').value,url:$('stationUrl').value})};
+$('stationDeleteConfirm').onclick=()=>writeStation({action:'delete',id:stationDeleting,confirmed:true});
 let presetsSaving=false,presetDrafts={},presetChanges={},presetStations=[];
 function buildPresetEditors(){
   const scope=$('presetsScope').value,mapping=presetDrafts[scope]||{};
@@ -787,7 +949,7 @@ function buildPresetEditors(){
       select.add(new Option('Liste globale — '+(inherited?(station?.note||pretty(inherited)):'sans affectation'),'inherit'));
     }
     select.add(new Option('Sans affectation',''));
-    presetStations.forEach(s=>select.add(new Option(s.note?pretty(s.id)+' — '+s.note:pretty(s.id),'station:'+s.id)));
+    presetStations.forEach(s=>select.add(new Option(s.note||pretty(s.id),'station:'+s.id)));
     const value=mapping[n];
     if(value&&!presetStations.some(s=>s.id===value))select.add(new Option('Station indisponible : '+value,'station:'+value));
     select.value=value?'station:'+value:(scope!=='default'&&value===undefined?'inherit':'');
@@ -849,7 +1011,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(body)
 
     def do_POST(self):
-        if self.path not in ("/api/speakers", "/api/presets"):
+        if self.path not in ("/api/speakers", "/api/presets", "/api/stations"):
             return self._json({"ok": False, "error": "Route inconnue."}, 404)
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             return self._json({"ok": False, "error": "JSON requis."}, 415)
@@ -862,9 +1024,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if not 0 < length <= 65536: raise ValueError("Taille de requête invalide.")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict): raise ValueError("Objet JSON requis.")
-            key = "presets" if self.path == "/api/presets" else "speakers"
-            configure = configure_presets if key == "presets" else configure_speakers
-            result = configure(payload.get(key))
+            key = self.path.rsplit("/", 1)[1]
+            configure = {"presets": configure_presets, "speakers": configure_speakers, "stations": configure_station}[key]
+            result = configure(payload if key == "stations" else payload.get(key))
             return self._json({"ok": True, key: result})
         except (ValueError, UnicodeError) as e:
             return self._json({"ok": False, "error": str(e)}, 400)
@@ -886,6 +1048,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self._json(api_status(cfg))
         if path == "/api/speakers":
             return self._json({"speakers": load_json(SPEAKERS_PATH, {})})
+        if path == "/api/stations":
+            with _CONFIG_LOCK:
+                return self._json(station_snapshot())
         if path == "/api/presets":
             with _CONFIG_LOCK:
                 return self._json({"presets": load_json(PRESETS_PATH, {}),
