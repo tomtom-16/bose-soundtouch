@@ -611,9 +611,7 @@ input[type=range]{flex:1;height:44px;accent-color:var(--acc)}
 display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
 .tile:active{transform:scale(.97)}
 .tile .preset{font-size:12px;font-weight:700;margin-bottom:8px;opacity:.85}
-.tile .nm{font-size:16px;font-weight:700}
-.tile .nt{font-size:11px;opacity:.75;margin-top:4px;overflow:hidden;display:-webkit-box;
--webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tile .nm{font-size:16px;font-weight:700;margin-bottom:4px}
 .tile .badge{position:absolute;top:10px;right:12px;font-size:11px;font-weight:700;opacity:0}
 .tile.playing{outline:2px solid #fff6}
 .tile.playing .badge{opacity:1}
@@ -628,10 +626,29 @@ background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;
 .header-actions{display:flex;align-items:center;gap:12px}
 .action{border:0;border-radius:12px;padding:12px;background:var(--card2);color:var(--txt);font:inherit;cursor:pointer}
 .action:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-#settingsOpen{font-size:24px;line-height:1;min-width:44px;min-height:44px}
-dialog{background:var(--bg);color:var(--txt);border:1px solid var(--card2);border-radius:20px;
-padding:20px;width:calc(100% - 24px);max-width:480px;max-height:90dvh;overflow:auto}
-dialog::backdrop{background:#000a}
+#settingsOpen,.settings-head > .action{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
+#settingsOpen svg{width:24px;height:24px}
+.settings-head > .action svg{width:20px;height:20px}
+dialog{position:fixed;inset:0;margin:0 auto;background:var(--bg);color:var(--txt);border:0;border-radius:0;
+padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right))
+max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
+width:100%;max-width:480px;height:100vh;height:100dvh;max-height:none;overflow:auto;overscroll-behavior:contain;
+opacity:0;transform:translateY(16px);
+transition:opacity .2s ease,transform .2s ease}
+dialog[open]{opacity:1;transform:translateY(0)}
+dialog::backdrop{background:#000a;opacity:0;
+transition:opacity .2s ease}
+dialog[open]::backdrop{opacity:1}
+dialog[open].closing{opacity:0;transform:translateY(16px);pointer-events:none}
+dialog[open].closing::backdrop{opacity:0}
+@starting-style{
+dialog[open]{opacity:0;transform:translateY(16px)}
+dialog[open]::backdrop{opacity:0}
+}
+@media(prefers-reduced-motion:reduce){
+dialog,dialog::backdrop{transition:none}
+dialog,dialog[open].closing{transform:none}
+}
 #settingsMenu{position:fixed;inset:calc(72px + env(safe-area-inset-top)) max(18px, calc((100% - 480px)/2 + 18px)) auto auto;margin:0;padding:8px;background:var(--bg);color:var(--txt);border:1px solid var(--card2);border-radius:14px}
 #settingsMenu .action{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin:3px 0}
 #settingsMenu .action svg,#presetsOpen svg,.settings-head h2 svg{width:20px;height:20px;flex:none}
@@ -644,6 +661,7 @@ dialog::backdrop{background:#000a}
 #stationSave{background:var(--accD)}
 .settings-head,.settings-actions{display:flex;justify-content:space-between;align-items:center;gap:10px}
 h2{font-size:20px;margin:0}
+dialog h2[tabindex="-1"]:focus{outline:none}
 .hint{color:var(--dim);font-size:13px;line-height:1.5}
 .speaker-editor{border:1px solid var(--card2);border-radius:14px;padding:14px;margin:14px 0;min-width:0}
 .speaker-editor label,.preset-field{display:block;font-size:13px;margin-bottom:10px;color:var(--dim)}
@@ -657,14 +675,14 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 .action:disabled{opacity:.5;cursor:wait}
 </style></head><body>
 <header><h1 aria-label="Bose Radio"><svg xmlns="http://www.w3.org/2000/svg" width="2500" height="303" viewBox="0 0 719.713 87.336" aria-hidden="true"><path d="M495.793 87.336L547.129 0h172.008v14.4H590.111l-12.744 22.032h68.113l-8.209 14.4H568.8l-13.105 22.032h68.473L615.6 87.336H495.793zM372.312 64.584h51.623c-1.727 2.52-2.52 5.04-1.439 6.624 1.871 2.808 8.496 1.439 10.225.864 3.455-1.08 5.328-3.24 6.982-6.12l8.641-15.12h-52.631c-11.018 0-11.377-6.552-6.912-14.4L405 8.928C409.824 1.008 416.305 0 424.584 0h91.512c9.289 0 9.289 7.56 5.545 14.4l-5.184 9.288h-51.912c1.584-3.024 1.654-5.688.432-7.344-2.016-2.736-7.344-2.16-10.152-.72-2.232 1.224-4.104 3.312-6.121 6.696l-8.279 14.112h50.904c10.729 0 12.385 7.849 9 14.4l-15.48 25.848c-4.176 6.84-11.375 10.656-19.656 10.656H374.33c-8.928 0-12.023-5.904-8.209-12.384l6.191-10.368zM263.592 14.4C271.872 0 285.624 0 296.28 0h77.761c8.207 0 15.119 6.84 10.654 14.4l-34.343 58.464c-7.272 11.664-13.104 14.472-22.392 14.472h-90.504c-8.928 0-13.032-6.552-8.208-14.472L263.592 14.4zm45.144 7.92l-26.208 43.632c-.864 1.584-1.224 3.023-.72 4.176 1.656 3.6 11.808 2.952 15.336 2.232 5.04-1.152 6.336-4.752 7.416-6.408l25.848-43.632c1.8-3.096 1.584-5.112 0-6.336-2.304-1.8-9.36-1.944-13.248-.864-3.312.936-6.048 3.024-8.424 7.2zM138.024 0h99.792c7.92 0 14.112 7.2 8.928 15.84l-10.296 17.496C231.984 41.256 224.424 45 218.88 45c5.544 3.096 5.544 8.567 2.736 13.392L211.32 76.319c-2.736 4.824-6.912 11.017-19.584 11.017H0V72.864h95.04L138.024 0zm29.952 36.432h25.416c5.904 0 8.28-3.096 9.648-5.832l5.184-8.28c2.088-3.744 2.088-7.92-2.376-7.92h-24.84l-13.032 22.032zm-21.672 36.432h25.416c5.904 0 8.28-3.097 9.647-5.832l5.185-8.28c2.088-3.816 2.088-7.92-2.448-7.92h-24.768l-13.032 22.032zm566.135-40.968c-3.959 0-7.344-3.096-7.344-7.272s3.385-7.2 7.344-7.2c3.961 0 7.273 3.024 7.273 7.2.001 4.176-3.312 7.272-7.273 7.272zm-5.904-7.272c0 3.456 2.594 6.048 5.904 6.048 3.24 0 5.832-2.592 5.832-6.048s-2.592-6.048-5.832-6.048c-3.31 0-5.904 2.592-5.904 6.048zm4.393.576v3.6h-1.295v-8.352h3.168c2.016 0 2.951.72 2.951 2.376 0 1.512-.936 2.16-2.16 2.304l2.377 3.672h-1.441l-2.16-3.6h-1.44zm0-1.08h1.512c1.08 0 2.018-.072 2.018-1.368 0-1.008-.938-1.224-1.801-1.224h-1.729v2.592z" fill-rule="evenodd" clip-rule="evenodd"/></svg></h1><div class="header-actions"><div id="conn"><span class="dot"></span><span id="connTxt">…</span></div>
-<button id="settingsOpen" class="action" aria-label="Réglages" title="Réglages" popovertarget="settingsMenu">⚙</button>
+<button id="settingsOpen" class="action" aria-label="Réglages" title="Réglages" popovertarget="settingsMenu"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 8.25C9.92894 8.25 8.25 9.92893 8.25 12C8.25 14.0711 9.92894 15.75 12 15.75C14.0711 15.75 15.75 14.0711 15.75 12C15.75 9.92893 14.0711 8.25 12 8.25ZM9.75 12C9.75 10.7574 10.7574 9.75 12 9.75C13.2426 9.75 14.25 10.7574 14.25 12C14.25 13.2426 13.2426 14.25 12 14.25C10.7574 14.25 9.75 13.2426 9.75 12Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11.9747 1.25C11.5303 1.24999 11.1592 1.24999 10.8546 1.27077C10.5375 1.29241 10.238 1.33905 9.94761 1.45933C9.27379 1.73844 8.73843 2.27379 8.45932 2.94762C8.31402 3.29842 8.27467 3.66812 8.25964 4.06996C8.24756 4.39299 8.08454 4.66251 7.84395 4.80141C7.60337 4.94031 7.28845 4.94673 7.00266 4.79568C6.64714 4.60777 6.30729 4.45699 5.93083 4.40743C5.20773 4.31223 4.47642 4.50819 3.89779 4.95219C3.64843 5.14353 3.45827 5.3796 3.28099 5.6434C3.11068 5.89681 2.92517 6.21815 2.70294 6.60307L2.67769 6.64681C2.45545 7.03172 2.26993 7.35304 2.13562 7.62723C1.99581 7.91267 1.88644 8.19539 1.84541 8.50701C1.75021 9.23012 1.94617 9.96142 2.39016 10.5401C2.62128 10.8412 2.92173 11.0602 3.26217 11.2741C3.53595 11.4461 3.68788 11.7221 3.68786 12C3.68785 12.2778 3.53592 12.5538 3.26217 12.7258C2.92169 12.9397 2.62121 13.1587 2.39007 13.4599C1.94607 14.0385 1.75012 14.7698 1.84531 15.4929C1.88634 15.8045 1.99571 16.0873 2.13552 16.3727C2.26983 16.6469 2.45535 16.9682 2.67758 17.3531L2.70284 17.3969C2.92507 17.7818 3.11058 18.1031 3.28089 18.3565C3.45817 18.6203 3.64833 18.8564 3.89769 19.0477C4.47632 19.4917 5.20763 19.6877 5.93073 19.5925C6.30717 19.5429 6.647 19.3922 7.0025 19.2043C7.28833 19.0532 7.60329 19.0596 7.8439 19.1986C8.08452 19.3375 8.24756 19.607 8.25964 19.9301C8.27467 20.3319 8.31403 20.7016 8.45932 21.0524C8.73843 21.7262 9.27379 22.2616 9.94761 22.5407C10.238 22.661 10.5375 22.7076 10.8546 22.7292C11.1592 22.75 11.5303 22.75 11.9747 22.75H12.0252C12.4697 22.75 12.8407 22.75 13.1454 22.7292C13.4625 22.7076 13.762 22.661 14.0524 22.5407C14.7262 22.2616 15.2616 21.7262 15.5407 21.0524C15.686 20.7016 15.7253 20.3319 15.7403 19.93C15.7524 19.607 15.9154 19.3375 16.156 19.1985C16.3966 19.0596 16.7116 19.0532 16.9974 19.2042C17.3529 19.3921 17.6927 19.5429 18.0692 19.5924C18.7923 19.6876 19.5236 19.4917 20.1022 19.0477C20.3516 18.8563 20.5417 18.6203 20.719 18.3565C20.8893 18.1031 21.0748 17.7818 21.297 17.3969L21.3223 17.3531C21.5445 16.9682 21.7301 16.6468 21.8644 16.3726C22.0042 16.0872 22.1135 15.8045 22.1546 15.4929C22.2498 14.7697 22.0538 14.0384 21.6098 13.4598C21.3787 13.1586 21.0782 12.9397 20.7378 12.7258C20.464 12.5538 20.3121 12.2778 20.3121 11.9999C20.3121 11.7221 20.464 11.4462 20.7377 11.2742C21.0783 11.0603 21.3788 10.8414 21.6099 10.5401C22.0539 9.96149 22.2499 9.23019 22.1547 8.50708C22.1136 8.19546 22.0043 7.91274 21.8645 7.6273C21.7302 7.35313 21.5447 7.03183 21.3224 6.64695L21.2972 6.60318C21.0749 6.21825 20.8894 5.89688 20.7191 5.64347C20.5418 5.37967 20.3517 5.1436 20.1023 4.95225C19.5237 4.50826 18.7924 4.3123 18.0692 4.4075C17.6928 4.45706 17.353 4.60782 16.9975 4.79572C16.7117 4.94679 16.3967 4.94036 16.1561 4.80144C15.9155 4.66253 15.7524 4.39297 15.7403 4.06991C15.7253 3.66808 15.686 3.2984 15.5407 2.94762C15.2616 2.27379 14.7262 1.73844 14.0524 1.45933C13.762 1.33905 13.4625 1.29241 13.1454 1.27077C12.8407 1.24999 12.4697 1.24999 12.0252 1.25H11.9747ZM10.5216 2.84515C10.5988 2.81319 10.716 2.78372 10.9567 2.76729C11.2042 2.75041 11.5238 2.75 12 2.75C12.4762 2.75 12.7958 2.75041 13.0432 2.76729C13.284 2.78372 13.4012 2.81319 13.4783 2.84515C13.7846 2.97202 14.028 3.21536 14.1548 3.52165C14.1949 3.61826 14.228 3.76887 14.2414 4.12597C14.271 4.91835 14.68 5.68129 15.4061 6.10048C16.1321 6.51968 16.9974 6.4924 17.6984 6.12188C18.0143 5.9549 18.1614 5.90832 18.265 5.89467C18.5937 5.8514 18.9261 5.94047 19.1891 6.14228C19.2554 6.19312 19.3395 6.27989 19.4741 6.48016C19.6125 6.68603 19.7726 6.9626 20.0107 7.375C20.2488 7.78741 20.4083 8.06438 20.5174 8.28713C20.6235 8.50382 20.6566 8.62007 20.6675 8.70287C20.7108 9.03155 20.6217 9.36397 20.4199 9.62698C20.3562 9.70995 20.2424 9.81399 19.9397 10.0041C19.2684 10.426 18.8122 11.1616 18.8121 11.9999C18.8121 12.8383 19.2683 13.574 19.9397 13.9959C20.2423 14.186 20.3561 14.29 20.4198 14.373C20.6216 14.636 20.7107 14.9684 20.6674 15.2971C20.6565 15.3799 20.6234 15.4961 20.5173 15.7128C20.4082 15.9355 20.2487 16.2125 20.0106 16.6249C19.7725 17.0373 19.6124 17.3139 19.474 17.5198C19.3394 17.72 19.2553 17.8068 19.189 17.8576C18.926 18.0595 18.5936 18.1485 18.2649 18.1053C18.1613 18.0916 18.0142 18.045 17.6983 17.8781C16.9973 17.5075 16.132 17.4803 15.4059 17.8995C14.68 18.3187 14.271 19.0816 14.2414 19.874C14.228 20.2311 14.1949 20.3817 14.1548 20.4784C14.028 20.7846 13.7846 21.028 13.4783 21.1549C13.4012 21.1868 13.284 21.2163 13.0432 21.2327C12.7958 21.2496 12.4762 21.25 12 21.25C11.5238 21.25 11.2042 21.2496 10.9567 21.2327C10.716 21.2163 10.5988 21.1868 10.5216 21.1549C10.2154 21.028 9.97201 20.7846 9.84514 20.4784C9.80512 20.3817 9.77195 20.2311 9.75859 19.874C9.72896 19.0817 9.31997 18.3187 8.5939 17.8995C7.86784 17.4803 7.00262 17.5076 6.30158 17.8781C5.98565 18.0451 5.83863 18.0917 5.73495 18.1053C5.40626 18.1486 5.07385 18.0595 4.81084 17.8577C4.74458 17.8069 4.66045 17.7201 4.52586 17.5198C4.38751 17.314 4.22736 17.0374 3.98926 16.625C3.75115 16.2126 3.59171 15.9356 3.4826 15.7129C3.37646 15.4962 3.34338 15.3799 3.33248 15.2971C3.28921 14.9684 3.37828 14.636 3.5801 14.373C3.64376 14.2901 3.75761 14.186 4.0602 13.9959C4.73158 13.5741 5.18782 12.8384 5.18786 12.0001C5.18791 11.1616 4.73165 10.4259 4.06021 10.004C3.75769 9.81389 3.64385 9.70987 3.58019 9.62691C3.37838 9.3639 3.28931 9.03149 3.33258 8.7028C3.34348 8.62001 3.37656 8.50375 3.4827 8.28707C3.59181 8.06431 3.75125 7.78734 3.98935 7.37493C4.22746 6.96253 4.3876 6.68596 4.52596 6.48009C4.66055 6.27983 4.74468 6.19305 4.81093 6.14222C5.07395 5.9404 5.40636 5.85133 5.73504 5.8946C5.83873 5.90825 5.98576 5.95483 6.30173 6.12184C7.00273 6.49235 7.86791 6.51962 8.59394 6.10045C9.31998 5.68128 9.72896 4.91837 9.75859 4.12602C9.77195 3.76889 9.80512 3.61827 9.84514 3.52165C9.97201 3.21536 10.2154 2.97202 10.5216 2.84515Z"/></svg></button>
 <div id="settingsMenu" popover>
 <button id="stationsOpen" class="action"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 4H9C8.07003 4 7.60504 4 7.22354 4.10222C6.18827 4.37962 5.37962 5.18827 5.10222 6.22354C5 6.60504 5 7.08922 5 8.01919M5 8.01919C5.31428 8 5.70173 8 6.2 8H17.8C18.9201 8 19.4802 8 19.908 8.21799C20.2843 8.40973 20.5903 8.71569 20.782 9.09202C21 9.51984 21 10.0799 21 11.2V16.8C21 17.9201 21 18.4802 20.782 18.908C20.5903 19.2843 20.2843 19.5903 19.908 19.782C19.4802 20 18.9201 20 17.8 20H6.2C5.07989 20 4.51984 20 4.09202 19.782C3.71569 19.5903 3.40973 19.2843 3.21799 18.908C3 18.4802 3 17.9201 3 16.8V11.2C3 10.0799 3 9.51984 3.21799 9.09202C3.40973 8.71569 3.71569 8.40973 4.09202 8.21799C4.32953 8.09697 4.60779 8.04314 5 8.01919ZM14 12H18M14 16H18M10 14C10 15.1046 9.10457 16 8 16C6.89543 16 6 15.1046 6 14C6 12.8954 6.89543 12 8 12C9.10457 12 10 12.8954 10 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Stations</button>
 <button id="speakersOpen" class="action"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 14C15 15.6569 13.6569 17 12 17C10.3431 17 9 15.6569 9 14C9 12.3431 10.3431 11 12 11C13.6569 11 15 12.3431 15 14Z" stroke="currentColor" stroke-width="2"/><path d="M5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12H15C16.8856 3 17.8284 3 18.4142 3.58579C19 4.17157 19 5.11438 19 7V12V17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H12H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17V12V7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 7.01123V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Enceintes</button>
 </div></div></header>
 
 <dialog id="stationsSettings" aria-labelledby="stationsTitle">
-<div class="settings-head"><h2 id="stationsTitle"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 4H9C8.07003 4 7.60504 4 7.22354 4.10222C6.18827 4.37962 5.37962 5.18827 5.10222 6.22354C5 6.60504 5 7.08922 5 8.01919M5 8.01919C5.31428 8 5.70173 8 6.2 8H17.8C18.9201 8 19.4802 8 19.908 8.21799C20.2843 8.40973 20.5903 8.71569 20.782 9.09202C21 9.51984 21 10.0799 21 11.2V16.8C21 17.9201 21 18.4802 20.782 18.908C20.5903 19.2843 20.2843 19.5903 19.908 19.782C19.4802 20 18.9201 20 17.8 20H6.2C5.07989 20 4.51984 20 4.09202 19.782C3.71569 19.5903 3.40973 19.2843 3.21799 18.908C3 18.4802 3 17.9201 3 16.8V11.2C3 10.0799 3 9.51984 3.21799 9.09202C3.40973 8.71569 3.71569 8.40973 4.09202 8.21799C4.32953 8.09697 4.60779 8.04314 5 8.01919ZM14 12H18M14 16H18M10 14C10 15.1046 9.10457 16 8 16C6.89543 16 6 15.1046 6 14C6 12.8954 6.89543 12 8 12C9.10457 12 10 12.8954 10 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Stations</h2><button type="button" id="stationsClose" class="action" aria-label="Fermer">✕</button></div>
+<div class="settings-head"><h2 id="stationsTitle" tabindex="-1" autofocus><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 4H9C8.07003 4 7.60504 4 7.22354 4.10222C6.18827 4.37962 5.37962 5.18827 5.10222 6.22354C5 6.60504 5 7.08922 5 8.01919M5 8.01919C5.31428 8 5.70173 8 6.2 8H17.8C18.9201 8 19.4802 8 19.908 8.21799C20.2843 8.40973 20.5903 8.71569 20.782 9.09202C21 9.51984 21 10.0799 21 11.2V16.8C21 17.9201 21 18.4802 20.782 18.908C20.5903 19.2843 20.2843 19.5903 19.908 19.782C19.4802 20 18.9201 20 17.8 20H6.2C5.07989 20 4.51984 20 4.09202 19.782C3.71569 19.5903 3.40973 19.2843 3.21799 18.908C3 18.4802 3 17.9201 3 16.8V11.2C3 10.0799 3 9.51984 3.21799 9.09202C3.40973 8.71569 3.71569 8.40973 4.09202 8.21799C4.32953 8.09697 4.60779 8.04314 5 8.01919ZM14 12H18M14 16H18M10 14C10 15.1046 9.10457 16 8 16C6.89543 16 6 15.1046 6 14C6 12.8954 6.89543 12 8 12C9.10457 12 10 12.8954 10 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Stations</h2><button type="button" id="stationsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
 <div id="stationList"></div>
 <button type="button" id="stationAdd" class="action">+ Ajouter une station</button>
 <form id="stationForm" hidden>
@@ -677,14 +695,14 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 <p id="stationsError" role="alert"></p>
 </dialog>
 <dialog id="stationDelete" aria-labelledby="stationDeleteTitle">
-<h2 id="stationDeleteTitle">Supprimer la station ?</h2>
+<h2 id="stationDeleteTitle" tabindex="-1" autofocus>Supprimer la station ?</h2>
 <p id="stationDeleteText" style="white-space:pre-line"></p>
 <div class="settings-actions"><button type="button" id="stationDeleteCancel" class="action">Annuler</button><button type="button" id="stationDeleteConfirm" class="action remove-speaker">Supprimer</button></div>
 </dialog>
 
 <dialog id="settings" aria-labelledby="settingsTitle">
 <form id="settingsForm">
-<div class="settings-head"><h2 id="settingsTitle"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 14C15 15.6569 13.6569 17 12 17C10.3431 17 9 15.6569 9 14C9 12.3431 10.3431 11 12 11C13.6569 11 15 12.3431 15 14Z" stroke="currentColor" stroke-width="2"/><path d="M5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12H15C16.8856 3 17.8284 3 18.4142 3.58579C19 4.17157 19 5.11438 19 7V12V17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H12H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17V12V7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 7.01123V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Enceintes</h2><button type="button" id="settingsClose" class="action" aria-label="Fermer">✕</button></div>
+<div class="settings-head"><h2 id="settingsTitle" tabindex="-1" autofocus><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 14C15 15.6569 13.6569 17 12 17C10.3431 17 9 15.6569 9 14C9 12.3431 10.3431 11 12 11C13.6569 11 15 12.3431 15 14Z" stroke="currentColor" stroke-width="2"/><path d="M5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12H15C16.8856 3 17.8284 3 18.4142 3.58579C19 4.17157 19 5.11438 19 7V12V17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H12H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17V12V7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 7.01123V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Enceintes</h2><button type="button" id="settingsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
 <p class="hint">Ajoutez vos enceintes et leurs adresses réseau. L’identifiant Bose (deviceID) est disponible sur http://IP-enceinte:8090/info. Le nom sert dans cette application.</p>
 <div id="speakerEditors"></div>
 <button type="button" id="speakerAdd" class="action">+ Ajouter une enceinte</button>
@@ -695,7 +713,7 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 
 <dialog id="presetsSettings" aria-labelledby="presetsTitle">
 <form id="presetsForm">
-<div class="settings-head"><h2 id="presetsTitle"><svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" aria-hidden="true"><path d="M23.2,10.2C18.1,5.1,10,3.5,2.9,5.7C2.6,5.7,2.2,6.2,2.2,7s0,3,0,3.9c0,0.8,0.7,1,1.1,0.9 c5.4-2.2,12-1.2,16.3,3.3l1.1,1.1c0.6,0.6,0.1,1.7-0.7,1.7h-7.8c-0.8,0-1.5,0.6-1.5,1.5v3c0,0.8,0.6,1.5,1.5,1.5l19.2,0.2 c0.8,0,1.5-0.6,1.5-1.5L33,3.5C33,2.7,32.4,2,31.5,2h-3c-0.8,0-1.6,0.6-1.6,1.4l-0.1,7.9c0,0.8-1.1,1.3-1.7,0.7 C25.2,12.1,23.2,10.2,23.2,10.2z"/><path d="M3.5,27.8h3c0.8,0,1.5,0.7,1.5,1.5v13.2C8,43.3,8.7,44,9.5,44h33c0.8,0,1.5-0.7,1.5-1.5V16.9 c0-0.8-0.7-1.5-1.5-1.5h-4c-0.8,0-1.5-0.7-1.5-1.5v-3c0-0.8,0.7-1.5,1.5-1.5H46c2.2,0,4,1.8,4,4V46c0,2.2-1.8,4-4,4H6 c-2.2,0-4-1.8-4-4V29.3C2,28.5,2.7,27.8,3.5,27.8z"/></svg>Presets</h2><button type="button" id="presetsClose" class="action" aria-label="Fermer">✕</button></div>
+<div class="settings-head"><h2 id="presetsTitle" tabindex="-1" autofocus><svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" aria-hidden="true"><path d="M23.2,10.2C18.1,5.1,10,3.5,2.9,5.7C2.6,5.7,2.2,6.2,2.2,7s0,3,0,3.9c0,0.8,0.7,1,1.1,0.9 c5.4-2.2,12-1.2,16.3,3.3l1.1,1.1c0.6,0.6,0.1,1.7-0.7,1.7h-7.8c-0.8,0-1.5,0.6-1.5,1.5v3c0,0.8,0.6,1.5,1.5,1.5l19.2,0.2 c0.8,0,1.5-0.6,1.5-1.5L33,3.5C33,2.7,32.4,2,31.5,2h-3c-0.8,0-1.6,0.6-1.6,1.4l-0.1,7.9c0,0.8-1.1,1.3-1.7,0.7 C25.2,12.1,23.2,10.2,23.2,10.2z"/><path d="M3.5,27.8h3c0.8,0,1.5,0.7,1.5,1.5v13.2C8,43.3,8.7,44,9.5,44h33c0.8,0,1.5-0.7,1.5-1.5V16.9 c0-0.8-0.7-1.5-1.5-1.5h-4c-0.8,0-1.5-0.7-1.5-1.5v-3c0-0.8,0.7-1.5,1.5-1.5H46c2.2,0,4,1.8,4,4V46c0,2.2-1.8,4-4,4H6 c-2.2,0-4-1.8-4-4V29.3C2,28.5,2.7,27.8,3.5,27.8z"/></svg>Presets</h2><button type="button" id="presetsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
 <p class="hint">Associez les boutons 1 à 6 aux stations. La liste globale s’applique à toutes les enceintes ; chaque enceinte peut remplacer certains presets.</p>
 <fieldset id="presetsFields" class="speaker-editor">
 <label class="preset-field">Configurer pour<select id="presetsScope"></select></label>
@@ -728,6 +746,13 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 <div class="toast" id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);
+async function closeDialog(dialog){
+  if(!dialog.open||dialog.classList.contains('closing'))return;
+  // Keep the native dialog open until its exit transition finishes (Safari included).
+  dialog.classList.add('closing');
+  await Promise.allSettled(dialog.getAnimations({subtree:true}).map(animation=>animation.finished));
+  dialog.close();dialog.classList.remove('closing');
+}
 let busy=false,volT=null,spkT={},lastTouch=0,currentStatus=null,tileSignature='',speakerSignature='';
 let selectedTarget='';
 const targetLabel=()=>selectedTarget==='all'?'Toutes les enceintes':
@@ -752,10 +777,9 @@ function buildTiles(stations){
     const b=document.createElement('button');b.className='tile';b.id='st-'+s.id;
     const h=hue(s.id);
     b.style.background=`linear-gradient(135deg,hsl(${h} 45% 30%),hsl(${h} 55% 16%))`;
-    b.innerHTML='<span class="badge">▶ PLAYING</span><span class="preset"></span><span class="nm"></span><span class="nt"></span>';
+    b.innerHTML='<span class="badge">▶ PLAYING</span><span class="preset"></span><span class="nm"></span>';
     b.querySelector('.preset').textContent=s.numbers.length?'Preset '+s.numbers.join(' / '):'Sans preset';
     b.querySelector('.nm').textContent=s.note||pretty(s.id);
-    b.querySelector('.nt').textContent='Internet radio';
     b.onclick=async()=>{if(busy)return;busy=true;touch();
       b.querySelector('.nm').textContent='Starting…';
       disableTargets(true);
@@ -848,9 +872,9 @@ function addSpeakerEditor(name='',speaker={}){
   remove.textContent='Retirer';remove.onclick=()=>row.remove();row.appendChild(remove);
   $('speakerEditors').appendChild(row);
 }
-function closeSettings(){if(!settingsSaving)$('settings').close()}
+function closeSettings(){if(!settingsSaving)return closeDialog($('settings'))}
 $('settingsClose').onclick=closeSettings;$('settingsCancel').onclick=closeSettings;
-$('settings').oncancel=e=>{if(settingsSaving)e.preventDefault()};
+$('settings').oncancel=e=>{e.preventDefault();if(!settingsSaving)return closeDialog($('settings'))};
 $('speakerAdd').onclick=()=>addSpeakerEditor();
 $('speakersOpen').onclick=async()=>{
   $('settingsMenu').hidePopover();
@@ -874,7 +898,7 @@ $('settingsForm').onsubmit=async e=>{
   Array.from($('speakerEditors').children).forEach(row=>row.disabled=true);
   $('speakerAdd').disabled=true;
   try{await api('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speakers})});
-    $('settings').close();toast('Enceintes enregistrées');await refresh();
+    await closeDialog($('settings'));toast('Enceintes enregistrées');await refresh();
   }catch(e){$('settingsError').textContent=e.message}
   finally{settingsSaving=false;$('settingsSave').disabled=false;$('speakerAdd').disabled=false;
     Array.from($('speakerEditors').children).forEach(row=>row.disabled=false)}
@@ -924,12 +948,12 @@ $('stationsOpen').onclick=async()=>{
   try{await loadStations();$('stationForm').hidden=true;$('stationsError').textContent='';$('stationsSettings').showModal()}
   catch(e){toast('Erreur : '+e.message)}
 };
-$('stationsClose').onclick=()=>{if(!stationSaving)$('stationsSettings').close()};
-$('stationsSettings').oncancel=e=>{if(stationSaving)e.preventDefault()};
+$('stationsClose').onclick=()=>{if(!stationSaving)return closeDialog($('stationsSettings'))};
+$('stationsSettings').oncancel=e=>{e.preventDefault();if(!stationSaving)return closeDialog($('stationsSettings'))};
 $('stationAdd').onclick=()=>editStation();
 $('stationCancel').onclick=()=>{$('stationForm').hidden=true};
-$('stationDeleteCancel').onclick=()=>{if(!stationSaving)$('stationDelete').close()};
-$('stationDelete').oncancel=e=>{if(stationSaving)e.preventDefault()};
+$('stationDeleteCancel').onclick=()=>{if(!stationSaving)return closeDialog($('stationDelete'))};
+$('stationDelete').oncancel=e=>{e.preventDefault();if(!stationSaving)return closeDialog($('stationDelete'))};
 async function writeStation(payload){
   if(stationSaving)return;
   stationSaving=true;$('stationsError').textContent='';$('stationFields').disabled=true;
@@ -940,7 +964,7 @@ async function writeStation(payload){
     await loadStations();await refresh();
   }catch(e){$('stationsError').textContent=e.message;try{await loadStations()}catch{}}
   finally{stationSaving=false;$('stationFields').disabled=false;$('stationAdd').disabled=false;
-    $('stationDeleteConfirm').disabled=false;$('stationDelete').close();renderStationList()}
+    $('stationDeleteConfirm').disabled=false;await closeDialog($('stationDelete'));renderStationList()}
 }
 $('stationForm').onsubmit=e=>{e.preventDefault();return writeStation({action:'save',id:stationEditing,name:$('stationName').value,url:$('stationUrl').value})};
 $('stationDeleteConfirm').onclick=()=>writeStation({action:'delete',id:stationDeleting,confirmed:true});
@@ -970,9 +994,9 @@ function buildPresetEditors(){
     label.appendChild(select);$('presetEditors').appendChild(label);
   }
 }
-function closePresets(){if(!presetsSaving)$('presetsSettings').close()}
+function closePresets(){if(!presetsSaving)return closeDialog($('presetsSettings'))}
 $('presetsClose').onclick=closePresets;$('presetsCancel').onclick=closePresets;
-$('presetsSettings').oncancel=e=>{if(presetsSaving)e.preventDefault()};
+$('presetsSettings').oncancel=e=>{e.preventDefault();if(!presetsSaving)return closeDialog($('presetsSettings'))};
 $('presetsScope').onchange=buildPresetEditors;
 $('presetsReset').onclick=()=>{
   const scope=$('presetsScope').value;if(scope==='default')return;
@@ -998,7 +1022,7 @@ $('presetsForm').onsubmit=async e=>{
   presetsSaving=true;$('presetsFields').disabled=true;$('presetsSave').disabled=true;$('presetsError').textContent='';
   try{
     await api('/api/presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({presets:presetChanges})});
-    $('presetsSettings').close();toast('Presets enregistrés');await refresh();
+    await closeDialog($('presetsSettings'));toast('Presets enregistrés');await refresh();
   }catch(e){$('presetsError').textContent=e.message}
   finally{presetsSaving=false;$('presetsFields').disabled=false;$('presetsSave').disabled=false}
 };

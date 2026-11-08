@@ -5,7 +5,7 @@ const {execFileSync}=require('node:child_process');
 const script=execFileSync('python3',['-c','import bose_radio; print(bose_radio.CONTROL_PAGE.split("<script>")[1].split("</script>")[0])'],{encoding:'utf8'});
 const elements=new Map();
 class Element{
-  constructor(){this.children=[];this.options=[];this.style={};this.parts={};this.value='';this.textContent='';this.classList={add(){},remove(){},toggle(){}};}
+  constructor(){this.children=[];this.options=[];this.style={};this.parts={};this.value='';this.textContent='';this.classList={add(){},remove(){},toggle(){},contains(){return false}};}
   setAttribute(name,value){(this.attributes??={})[name]=value}
   set id(id){this._id=id;elements.set(id,this)}
   get id(){return this._id}
@@ -15,6 +15,7 @@ class Element{
   appendChild(c){this.children.push(c);c.parent=this}
   remove(){this.parent.children=this.parent.children.filter(c=>c!==this)}
   focus(){}
+  getAnimations(){return []}
   hidePopover(){this.open=false}
   showModal(){this.open=true}
   close(){this.open=false}
@@ -110,7 +111,7 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('settingsError').textContent,'test failure');
   assert.equal(get('settingsSave').disabled,false);
   assert.equal(get('speakerEditors').children[0].disabled,false);
-  get('settingsCancel').onclick();
+  await get('settingsCancel').onclick();
   assert.equal(get('settings').open,false);
   fail=false;
   await get('stationsOpen').onclick();
@@ -129,7 +130,7 @@ function render(){vm.runInContext('render(status)',context)}
   await get('stationList').children[0].children[2].onclick();
   assert.equal(get('stationDelete').open,true);
   assert.ok(get('stationDeleteText').textContent.includes('Living (preset(s) 1)'));
-  get('stationDeleteCancel').onclick();
+  await get('stationDeleteCancel').onclick();
   assert.equal(writes.length,beforeCancel);
   await get('stationList').children[0].children[2].onclick();
   await get('stationDeleteConfirm').onclick();
@@ -140,7 +141,7 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('stationsError').textContent,'test failure');
   assert.equal(get('stationFields').disabled,false);
   assert.equal(get('stationForm').hidden,false);
-  fail=false;get('stationsClose').onclick();
+  fail=false;await get('stationsClose').onclick();
   get('target').children[1].onclick();
   await get('presetsOpen').onclick();
   assert.equal(get('presetsSettings').open,true);
@@ -180,11 +181,11 @@ function render(){vm.runInContext('render(status)',context)}
   await get('presetsOpen').onclick();
   choose(1,'extra');
   const count=writes.length;
-  get('presetsCancel').onclick();
+  await get('presetsCancel').onclick();
   assert.equal(writes.length,count);
   await get('presetsOpen').onclick();
   assert.equal(preset(1).value,'station:two');
-  get('presetsClose').onclick();
+  await get('presetsClose').onclick();
   status.presets.Bath[1]=null;render();
   assert.equal(get('grid').children.find(c=>c.id==='st-two').querySelector('.preset').textContent,'Sans preset');
   status.speakers=[{name:'New <name>',ip:'192.0.2.3',volume:12,playStatus:'STANDBY'}];render();
@@ -201,5 +202,13 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('presetsReset').hidden,true);
   assert.equal(get('presetsScope').options.length,1);
   assert.ok(!script.includes('Les presets seront configurables dans une prochaine étape'));
+  // A native close must wait for the exit animation, even without CSS overlay support.
+  const dialog=get('settings');dialog.showModal();
+  let finishAnimation;
+  dialog.getAnimations=()=>[{finished:new Promise(resolve=>{finishAnimation=resolve})}];
+  const closing=vm.runInContext("closeDialog($('settings'))",context);
+  assert.equal(dialog.open,true);
+  finishAnimation();await closing;
+  assert.equal(dialog.open,false);
   console.log('Web UI: playback, station catalogue CRUD, deletion confirmation, presets, inheritance and speaker settings passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

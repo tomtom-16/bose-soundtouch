@@ -55,6 +55,12 @@ sur une enceinte seule la détache de son groupe éventuel ; si elle était maî
 le groupe est dissous.
 
 Le bouton **⚙** en haut ouvre un sous-menu **Stations / Enceintes**.
+Les fenêtres de configuration et de confirmation occupent la même largeur que
+l’interface principale (480 px maximum), centrées sur ordinateur, et toute la
+hauteur du navigateur. Sur mobile, elles occupent toute la largeur disponible. Leur contenu
+défile si nécessaire ; les boutons de fermeture ou d’annulation restent disponibles.
+L’ouverture et la fermeture utilisent un fondu avec un léger déplacement vertical,
+désactivés si le système demande de réduire les animations.
 **Enceintes** ouvre la configuration des enceintes : ajouter, modifier
 ou retirer une enceinte, puis **Enregistrer**. Les champs sont le nom local,
 l'adresse IPv4, le `deviceID` Bose (12 caractères hexadécimaux) et le modèle
