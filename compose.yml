@@ -13,7 +13,6 @@ services:
       - type: bind
         source: ${BOSE_CONFIG_DIR:-./config}
         target: /app/config
-        read_only: true
         bind:
           create_host_path: false
       - type: bind

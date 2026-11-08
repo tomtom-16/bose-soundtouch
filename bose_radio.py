@@ -36,6 +36,8 @@ import sys, os, json, socket, ssl, re, time, threading, subprocess, argparse, ur
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import xml.etree.ElementTree as ET
 import urllib.parse
+import ipaddress
+import tempfile
 
 # Windows consoles default to cp1252 which can't print ▶/■ — force UTF-8.
 for _s in (sys.stdout, sys.stderr):
@@ -80,7 +82,76 @@ def load_json(path, default):
 
 def save_json(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f: json.dump(obj, f, indent=2, ensure_ascii=False)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".config-")
+    try:
+        with os.fdopen(fd, "w") as f:
+            try: previous = os.stat(path)
+            except FileNotFoundError: previous = None
+            os.chmod(tmp, previous.st_mode & 0o777 if previous else 0o644)
+            # Docker runs as root; retain the host user's ownership on replacement.
+            if previous and hasattr(os, "fchown") and os.geteuid() == 0:
+                os.fchown(f.fileno(), previous.st_uid, previous.st_gid)
+            json.dump(obj, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp): os.unlink(tmp)
+
+_CONFIG_LOCK = threading.Lock()
+
+def configure_speakers(rows):
+    """Validate the complete list before writing; retain metadata and renamed presets."""
+    if not isinstance(rows, list) or len(rows) > 100:
+        raise ValueError("Liste d'enceintes invalide (100 maximum).")
+    with _CONFIG_LOCK:
+        old = load_json(SPEAKERS_PATH, {})
+        result, renames, originals, ips, ids = {}, {}, set(), set(), set()
+        for row in rows:
+            if not isinstance(row, dict): raise ValueError("Enceinte invalide.")
+            fields = [row.get(k, "") for k in ("name", "ip", "deviceID", "model", "original_name")]
+            if not all(isinstance(v, str) for v in fields):
+                raise ValueError("Les champs doivent être du texte.")
+            name, ip, device_id, model, original = [v.strip() for v in fields]
+            if not name or len(name) > 80 or name.lower() in ("default", "all"):
+                raise ValueError("Nom requis (80 caractères maximum, hors default et all).")
+            if name in result: raise ValueError("Chaque enceinte doit avoir un nom unique.")
+            try: ip = str(ipaddress.IPv4Address(ip))
+            except ValueError: raise ValueError("Adresse IPv4 invalide : " + ip)
+            if ip in ips: raise ValueError("Chaque enceinte doit avoir une IP unique.")
+            if not re.fullmatch(r"[0-9a-fA-F]{12}", device_id):
+                raise ValueError("L'identifiant Bose doit contenir 12 caractères hexadécimaux.")
+            device_id = device_id.upper()
+            if device_id in ids: raise ValueError("Identifiant Bose utilisé plusieurs fois.")
+            if len(model) > 100: raise ValueError("Modèle trop long.")
+            if original and (original not in old or original in originals):
+                raise ValueError("Configuration modifiée : fermer puis rouvrir les réglages.")
+            if original:
+                originals.add(original)
+                if original != name: renames[original] = name
+            result[name] = {**old.get(original, {}), "ip": ip, "deviceID": device_id, "model": model}
+            ips.add(ip); ids.add(device_id)
+        presets = load_json(PRESETS_PATH, {})
+        for source, dest in renames.items():
+            if dest in presets and dest not in renames and dest != source:
+                raise ValueError("Ce nom possède déjà des presets : " + dest)
+        updated_presets = {renames.get(k, k): v for k, v in presets.items()}
+        cfg = load_json(CONFIG_PATH, {})
+        updated_cfg = dict(cfg)
+        if cfg.get("master") in renames: updated_cfg["master"] = renames[cfg["master"]]
+        elif cfg.get("master") in old and cfg["master"] not in result: updated_cfg.pop("master")
+        changes = []
+        if updated_presets != presets: changes.append((PRESETS_PATH, updated_presets, presets))
+        if updated_cfg != cfg: changes.append((CONFIG_PATH, updated_cfg, cfg))
+        changes.append((SPEAKERS_PATH, result, old))
+        written = []
+        try:
+            for path, value, previous in changes:
+                save_json(path, value)
+                written.append((path, previous))
+        except OSError:
+            for path, previous in reversed(written): save_json(path, previous)
+            raise
+        return result
 
 def get_config():
     cfg = load_json(CONFIG_PATH, {})
@@ -457,8 +528,38 @@ border-radius:14px;background:#ffffff20;color:#fff;cursor:pointer}
 .toast{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom));transform:translateX(-50%);
 background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
+.header-actions{display:flex;align-items:center;gap:12px}
+.action{border:0;border-radius:12px;padding:12px;background:var(--card2);color:var(--txt);font:inherit;cursor:pointer}
+.action:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#settingsOpen{font-size:24px;line-height:1;min-width:44px;min-height:44px}
+dialog{background:var(--bg);color:var(--txt);border:1px solid var(--card2);border-radius:20px;
+padding:20px;width:calc(100% - 24px);max-width:480px;max-height:90dvh;overflow:auto}
+dialog::backdrop{background:#000a}
+.settings-head,.settings-actions{display:flex;justify-content:space-between;align-items:center;gap:10px}
+h2{font-size:20px;margin:0}
+.hint{color:var(--dim);font-size:13px;line-height:1.5}
+.speaker-editor{border:1px solid var(--card2);border-radius:14px;padding:14px;margin:14px 0;min-width:0}
+.speaker-editor label{display:block;font-size:13px;margin-bottom:10px;color:var(--dim)}
+.speaker-editor input{display:block;width:100%;margin-top:5px;padding:11px;border:1px solid #444;
+border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size:16px}
+.remove-speaker{color:#fca5a5}
+#settingsSave{background:var(--accD)}
+#settingsError{color:#fca5a5;font-size:14px}
+.action:disabled{opacity:.5;cursor:wait}
 </style></head><body>
-<header><h1>Bose Radio</h1><div id="conn"><span class="dot"></span><span id="connTxt">…</span></div></header>
+<header><h1>Bose Radio</h1><div class="header-actions"><div id="conn"><span class="dot"></span><span id="connTxt">…</span></div>
+<button id="settingsOpen" class="action" aria-label="Configurer les enceintes" title="Configurer les enceintes">⚙</button></div></header>
+
+<dialog id="settings" aria-labelledby="settingsTitle">
+<form id="settingsForm">
+<div class="settings-head"><h2 id="settingsTitle">Enceintes</h2><button type="button" id="settingsClose" class="action" aria-label="Fermer">✕</button></div>
+<p class="hint">Ajoutez vos enceintes et leurs adresses réseau. L’identifiant Bose (deviceID) est disponible sur http://IP-enceinte:8090/info. Le nom sert dans cette application.</p>
+<div id="speakerEditors"></div>
+<button type="button" id="speakerAdd" class="action">+ Ajouter une enceinte</button>
+<p class="hint">Enregistrer met à jour la configuration locale. Retirer une enceinte de la liste n’arrête pas sa lecture. Les presets seront configurables dans une prochaine étape.</p>
+<p id="settingsError" role="alert"></p>
+<div class="settings-actions"><button type="button" id="settingsCancel" class="action">Annuler</button><button type="submit" id="settingsSave" class="action">Enregistrer</button></div>
+</form></dialog>
 
 <div id="hero"><div class="eq"><span></span><span></span><span></span></div>
 <div class="t"><div id="hTitle">Off</div><div id="hSub">Choisir une enceinte puis une station</div></div>
@@ -482,7 +583,7 @@ background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;
 <div class="toast" id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);
-let busy=false,volT=null,spkT={},lastTouch=0,currentStatus=null,tileSignature='';
+let busy=false,volT=null,spkT={},lastTouch=0,currentStatus=null,tileSignature='',speakerSignature='';
 let selectedTarget='';
 const targetLabel=()=>selectedTarget==='all'?'Toutes les enceintes':
   currentStatus?.speakers.find(s=>s.ip===selectedTarget)?.name||'une enceinte';
@@ -496,7 +597,7 @@ const touch=()=>lastTouch=Date.now();          // suppress poll updates while us
 const idle=()=>Date.now()-lastTouch>1200;
 const pretty=s=>s.replace(/-/g,' ').replace(/\\b\\w/g,c=>c.toUpperCase());
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
-async function api(p){const r=await fetch(p);const data=await r.json();
+async function api(p,options){const r=await fetch(p,options);const data=await r.json();
   if(!r.ok||data.ok===false)throw new Error(data.error||'Request failed');return data}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
 
@@ -522,15 +623,23 @@ function buildTiles(stations){
 function buildSpeakers(speakers){
   speakers.forEach(s=>{
     const r=document.createElement('div');r.className='srow';r.id='sp-'+s.ip;
-    r.innerHTML=`<span class="st"></span><span class="nm">${s.name.replace('ST - ','').replace('ST ','')}</span>
-      <input type="range" min="0" max="70" value="${s.volume??30}">`;
+    r.innerHTML='<span class="st"></span><span class="nm"></span><input type="range" min="0" max="70">';
+    r.querySelector('.nm').textContent=s.name.replace('ST - ','').replace('ST ','');
+    r.querySelector('input').value=s.volume??30;
     const sl=r.querySelector('input');
     sl.oninput=()=>{touch();clearTimeout(spkT[s.ip]);
       spkT[s.ip]=setTimeout(()=>api('/api/volume/'+sl.value+'?ip='+s.ip).catch(e=>toast(e.message)),350)};
     $('spkList').appendChild(r)});
 }
 function render(st){
+  const signatureSpeakers=JSON.stringify(st.speakers.map(s=>[s.name,s.ip]));
+  const changed=signatureSpeakers!==speakerSignature;speakerSignature=signatureSpeakers;
   currentStatus=st;
+  if(changed){
+    clearTimeout(volT);Object.values(spkT).forEach(clearTimeout);spkT={};
+    $('target').replaceChildren();$('spkList').replaceChildren();
+    if(selectedTarget!=='all'&&!st.speakers.some(s=>s.ip===selectedTarget))selectedTarget='';
+  }
   if(!$('target').childElementCount){
     st.speakers.forEach(s=>{
       const b=document.createElement('button');b.className='target-btn';b.textContent=s.name;
@@ -580,6 +689,51 @@ $('spkToggle').onclick=()=>{const o=$('spkList').classList.toggle('open');
 $('stop').onclick=async()=>{if(busy)return;busy=true;touch();disableTargets(true);
   try{await api('/api/stop'+targetQuery());toast('Arrêt : '+targetLabel())}
   catch(e){toast('Erreur : '+e.message)}finally{busy=false;disableTargets(false);refresh()}};
+let settingsSaving=false;
+function addSpeakerEditor(name='',speaker={}){
+  const row=document.createElement('fieldset');row.className='speaker-editor';row.originalName=name;
+  for(const [key,label,value] of [['name','Nom',name],['ip','Adresse IPv4',speaker.ip||''],
+    ['deviceID','Identifiant Bose (deviceID)',speaker.deviceID||''],['model','Modèle (facultatif)',speaker.model||'']]){
+    const field=document.createElement('label');field.textContent=label;
+    const input=document.createElement('input');input.name=key;input.value=value;
+    input.required=key!=='model';input.maxLength=key==='name'?80:key==='model'?100:key==='ip'?15:12;
+    if(key==='deviceID')input.pattern='[0-9a-fA-F]{12}';
+    input.autocomplete='off';field.appendChild(input);row.appendChild(field);
+  }
+  const remove=document.createElement('button');remove.type='button';remove.className='action remove-speaker';
+  remove.textContent='Retirer';remove.onclick=()=>row.remove();row.appendChild(remove);
+  $('speakerEditors').appendChild(row);
+}
+function closeSettings(){if(!settingsSaving)$('settings').close()}
+$('settingsClose').onclick=closeSettings;$('settingsCancel').onclick=closeSettings;
+$('settings').oncancel=e=>{if(settingsSaving)e.preventDefault()};
+$('speakerAdd').onclick=()=>addSpeakerEditor();
+$('settingsOpen').onclick=async()=>{
+  if(busy)return;
+  $('settingsOpen').disabled=true;
+  try{
+    const config=await api('/api/speakers');$('speakerEditors').replaceChildren();
+    Object.entries(config.speakers).forEach(([name,speaker])=>addSpeakerEditor(name,speaker));
+    if(!Object.keys(config.speakers).length)addSpeakerEditor();
+    $('settingsError').textContent='';$('settings').showModal();
+  }catch(e){toast('Erreur : '+e.message)}finally{$('settingsOpen').disabled=false}
+};
+$('settingsForm').onsubmit=async e=>{
+  e.preventDefault();if(settingsSaving)return;
+  const speakers=Array.from($('speakerEditors').children).map(row=>{
+    const speaker={original_name:row.originalName};
+    for(const key of ['name','ip','deviceID','model'])speaker[key]=row.querySelector('[name="'+key+'"]').value.trim();
+    return speaker;
+  });
+  settingsSaving=true;$('settingsSave').disabled=true;$('settingsError').textContent='';
+  Array.from($('speakerEditors').children).forEach(row=>row.disabled=true);
+  $('speakerAdd').disabled=true;
+  try{await api('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speakers})});
+    $('settings').close();toast('Enceintes enregistrées');await refresh();
+  }catch(e){$('settingsError').textContent=e.message}
+  finally{settingsSaving=false;$('settingsSave').disabled=false;$('speakerAdd').disabled=false;
+    Array.from($('speakerEditors').children).forEach(row=>row.disabled=false)}
+};
 refresh();setInterval(refresh,5000);
 </script></body></html>"""
 
@@ -593,7 +747,29 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers(); self.wfile.write(body)
+
+    def do_POST(self):
+        if self.path != "/api/speakers":
+            return self._json({"ok": False, "error": "Route inconnue."}, 404)
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            return self._json({"ok": False, "error": "JSON requis."}, 415)
+        # Reject cross-origin browser writes to this local configuration endpoint.
+        origin = self.headers.get("Origin")
+        if origin and urllib.parse.urlsplit(origin).netloc != self.headers.get("Host"):
+            return self._json({"ok": False, "error": "Origine refusée."}, 403)
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 65536: raise ValueError("Taille de requête invalide.")
+            payload = json.loads(self.rfile.read(length))
+            if not isinstance(payload, dict): raise ValueError("Objet JSON requis.")
+            result = configure_speakers(payload.get("speakers"))
+            return self._json({"ok": True, "speakers": result})
+        except (ValueError, UnicodeError) as e:
+            return self._json({"ok": False, "error": str(e)}, 400)
+        except OSError:
+            return self._json({"ok": False, "error": "Écriture impossible. Vérifier les droits du dossier de configuration."}, 500)
 
     def do_GET(self):
         cfg = get_config()
@@ -608,6 +784,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.end_headers(); self.wfile.write(body); return
         if path == "/api/status":
             return self._json(api_status(cfg))
+        if path == "/api/speakers":
+            return self._json({"speakers": load_json(SPEAKERS_PATH, {})})
         m = re.match(r"/api/play/(.+)$", path)
         if m:
             station = urllib.parse.unquote(m.group(1))
@@ -726,7 +904,7 @@ def serve(cfg):
     srv = ThreadingHTTPServer(("0.0.0.0", port), ProxyHandler)
     if cfg.get("watchdog", True):
         threading.Thread(target=watchdog, args=(cfg,), daemon=True).start()
-    print(f"Proxy serving on http://{host}:{port}/stream/<station>  (Ctrl-C to stop)")
+    print(f"Interface web : http://{host}:{port}/  (Ctrl-C pour arrêter)")
     print("Keep this running while you want radio to play.")
     try: srv.serve_forever()
     except KeyboardInterrupt: print("\nbye")

@@ -140,11 +140,15 @@ function buildZone(masterName, masterIp) {
   });
 }
 
-function connect(name, ip, cfg) {
+const connections = new Map();
+function connect(name, ip, cfg, entry) {
+  if (connections.get(name) !== entry) return;
   const url = 'ws://'+ip+':8080';
   const ws = new WebSocket(url, 'gabbo');
+  entry.ws = ws;
   ws.on('open', () => console.log(`[${name}] listening (${ip})`));
   ws.on('message', async (data) => {
+    if (connections.get(name) !== entry) return;
     const s = data.toString();
     const m = s.match(/<nowSelectionUpdated><preset id="(\d)"/);
     if (!m) return;
@@ -176,16 +180,31 @@ function connect(name, ip, cfg) {
       }
     } catch(e){ console.log(`[${name}] play error`, e.message); }
   });
-  ws.on('close', () => { console.log(`[${name}] closed; reconnecting in 5s`); setTimeout(()=>connect(name,ip,cfg),5000); });
+  ws.on('close', () => {
+    if (connections.get(name) !== entry) return;
+    console.log(`[${name}] closed; reconnecting in 5s`);
+    entry.timer = setTimeout(()=>connect(name,ip,cfg,entry),5000);
+  });
   ws.on('error', (e) => { console.log(`[${name}] ws error: ${e.message}`); try{ws.close();}catch{} });
 }
 
-function main(){
+function reloadSpeakers(){
   const cfg = rd('config.json', {proxy_port:8077, proxy_host:'auto'});
-  const speakers = rd('speakers.json', {});
-  const names = Object.keys(speakers);
-  if (!names.length){ console.error('no speakers.json — configure config/speakers.json or run: python3 bose_radio.py discover'); process.exit(1); }
-  console.log('Bose button listener starting for:', names.join(', '));
-  for (const name of names) connect(name, speakers[name].ip, cfg);
+  const speakers = rd('speakers.json', null);
+  if (!speakers || typeof speakers !== 'object' || Array.isArray(speakers)) return;
+  for (const [name, entry] of connections) {
+    if (speakers[name]?.ip === entry.ip && JSON.stringify(cfg) === entry.config) continue;
+    connections.delete(name);clearTimeout(entry.timer);entry.ws?.terminate();
+    delete busyUntil[name];
+  }
+  for (const [name, speaker] of Object.entries(speakers)) {
+    if (!speaker?.ip || connections.has(name)) continue;
+    const entry = {ip:speaker.ip,config:JSON.stringify(cfg)};
+    connections.set(name,entry);connect(name,speaker.ip,cfg,entry);
+  }
+}
+function main(){
+  console.log('Bose button listener starting; watching speaker configuration');
+  reloadSpeakers();setInterval(reloadSpeakers,2000);
 }
 main();

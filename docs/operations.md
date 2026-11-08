@@ -99,8 +99,12 @@ curl -sS http://127.0.0.1:8077/api/status
 ```
 
 - `config/presets.json` est relu par le listener à chaque événement de bouton.
-- Après modification de `config/config.json` ou `config/speakers.json`, redémarrer
-  les deux services : `docker compose restart bose-radio bose-buttons`.
+- Le bouton **⚙** de l'interface permet de modifier `config/speakers.json`.
+  Le proxy reprend les changements à la prochaine requête ; le listener recharge
+  ses connexions sous deux secondes, même si la liste est vide au démarrage.
+- `config/config.json` est relu par le proxy à chaque requête et par le listener
+  sous deux secondes. Pour changer le port d'écoute ou l'activation du watchdog,
+  redémarrer le proxy : `docker compose restart bose-radio`.
 - Après modification de `config/stations.json`, redémarrer le proxy par précaution :
   `docker compose restart bose-radio`.
 - Un changement JSON ne nécessite pas de reconstruire les images.
@@ -146,5 +150,6 @@ matériel ou autres informations personnelles.
 
 `.dockerignore` exclut également ces dossiers et configurations du contexte de
 construction. Les images ne contiennent que le code et les dépendances ; la
-configuration effective est montée en lecture seule. Le dossier `data/` est monté
+configuration effective est montée en écriture pour le proxy (configuration des
+enceintes depuis l'interface) et en lecture seule pour le listener. Le dossier `data/` est monté
 en écriture pour permettre aussi la suppression de `state.json` lors d'un arrêt.

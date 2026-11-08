@@ -52,6 +52,19 @@ volume individuel de chaque enceinte. Lancer une station ou arrêter la lecture
 sur une enceinte seule la détache de son groupe éventuel ; si elle était maître,
 le groupe est dissous.
 
+Le bouton **⚙** en haut ouvre la configuration des enceintes : ajouter, modifier
+ou retirer une enceinte, puis **Enregistrer**. Les champs sont le nom local,
+l'adresse IPv4, le `deviceID` Bose (12 caractères hexadécimaux) et le modèle
+facultatif. Le `deviceID` se trouve dans `http://<IP-enceinte>:8090/info`.
+L'enregistrement écrit dans `config/speakers.json` ; aucun fichier réel n'est
+modifié avant cette action. Le proxy reprend la liste à la prochaine requête et
+le listener recharge ses connexions sous deux secondes, sans redémarrage.
+Renommer une enceinte conserve ses presets individuels et son éventuel rôle
+`master` en mettant aussi à jour les JSON concernés. Retirer une enceinte ne
+coupe pas sa lecture et conserve ses presets dans le fichier pour un éventuel
+réajout avec le même nom. **Annuler** ferme sans enregistrer.
+L'éditeur des presets globaux et par enceinte reste une prochaine étape.
+
 Les stations sont affichées dans l'ordre des presets physiques 1 à 6, avec leur
 numéro sur chaque bouton, à partir de `config/presets.json`. Les correspondances
 propres à l'enceinte choisie remplacent celles de `default` ; en mode toutes les
