@@ -53,6 +53,8 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('grid').children[0].querySelector('.preset').textContent,'Preset 1');
   assert.equal(get('target').children.length,2);
   assert.equal(get('target').children[0].attributes['aria-pressed'],'true');
+  assert.equal(get('spkList').hidden,true);
+  assert.ok(!script.includes('spkToggle'));
   assert.equal(get('stop').hidden,false);
   assert.equal(get('hTitle').textContent,'one');
   get('target').children[1].onclick();
@@ -69,6 +71,12 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('stop').hidden,true);
   get('targetAll').onclick();
   assert.equal(get('targetAll').attributes['aria-pressed'],'true');
+  assert.equal(get('spkList').hidden,false);
+  assert.deepEqual(get('spkList').children.map(c=>c.querySelector('input').value),[20,30]);
+  get('target').children[1].onclick();
+  assert.equal(get('spkList').hidden,true);
+  get('targetAll').onclick();
+  assert.equal(get('spkList').hidden,false);
   assert.equal(get('stop').hidden,false);
   status.speakers[0].playStatus='STANDBY';render();
   assert.equal(get('stop').hidden,true);

@@ -47,8 +47,10 @@ L'adresse de l'interface web est `http://<IP-du-serveur>:8077/`.
 Le contrôle segmenté permet de choisir une enceinte. Pour une lecture synchronisée,
 choisir **Toutes**, puis toucher une station. Lecture et volume
 principal suivent ce choix, ainsi que le bouton d’arrêt en haut à droite du bloc
-de lecture, visible uniquement quand la sélection joue. Le panneau **Speakers** propose en plus le
-volume individuel de chaque enceinte. Lancer une station ou arrêter la lecture
+de lecture, visible uniquement quand la sélection joue. En mode **Toutes**, les
+curseurs de volume individuels de chaque enceinte s’affichent directement sous
+le volume principal. Ils sont masqués lorsqu’une seule enceinte est sélectionnée.
+Lancer une station ou arrêter la lecture
 sur une enceinte seule la détache de son groupe éventuel ; si elle était maître,
 le groupe est dissous.
 

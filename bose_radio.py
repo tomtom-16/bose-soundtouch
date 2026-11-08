@@ -598,9 +598,7 @@ font-size:28px;font-weight:600;line-height:1}
 .vbtn:active{background:#33333d}
 input[type=range]{flex:1;height:44px;accent-color:var(--acc)}
 #vv{width:30px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim);font-size:15px}
-#spkToggle{background:none;border:0;color:var(--dim);font-size:13px;padding:10px 4px 2px;width:100%;text-align:left}
-#spkList{display:none;margin-top:6px}
-#spkList.open{display:block}
+#spkList{margin-top:6px}
 .srow{display:flex;align-items:center;gap:10px;padding:7px 2px}
 .srow .nm{width:86px;font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srow .st{width:8px;height:8px;border-radius:99px;background:#444;flex:none}
@@ -713,8 +711,7 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
     <button class="vbtn" id="vup">+</button>
     <span id="vv">30</span>
   </div>
-  <button id="spkToggle">Speakers ▸</button>
-  <div id="spkList"></div>
+  <div id="spkList" hidden></div>
 </div>
 
 <div class="station-head"><div class="sec">Stations</div><button id="presetsOpen" class="action">Gérer les presets</button></div>
@@ -790,6 +787,7 @@ function render(st){
   const target=selectedTarget;
   Array.from($('target').children).forEach(b=>b.setAttribute('aria-pressed',String(b.value===target)));
   $('targetAll').setAttribute('aria-pressed',String(target==='all'));
+  $('spkList').hidden=target!=='all';
   const selected=st.speakers.find(s=>s.ip===target);
   const mapping={...(st.presets?.default||{}),...(selected?st.presets?.[selected.name]||{}:{})};
   const stations=st.stations.map(s=>({...s,numbers:Object.keys(mapping)
@@ -823,8 +821,6 @@ function setGroupVol(v){v=Math.max(0,Math.min(70,v));$('vol').value=v;$('vv').te
 $('vol').oninput=()=>setGroupVol(+$('vol').value);
 $('vdn').onclick=()=>setGroupVol(+$('vol').value-5);
 $('vup').onclick=()=>setGroupVol(+$('vol').value+5);
-$('spkToggle').onclick=()=>{const o=$('spkList').classList.toggle('open');
-  $('spkToggle').textContent=o?'Speakers ▾':'Speakers ▸'};
 $('stop').onclick=async()=>{if(busy)return;busy=true;touch();disableTargets(true);
   try{await api('/api/stop'+targetQuery());toast('Arrêt : '+targetLabel())}
   catch(e){toast('Erreur : '+e.message)}finally{busy=false;disableTargets(false);refresh()}};
