@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Bose : préparer la configuration",
+      "type": "process",
+      "command": "python3",
+      "args": ["scripts/init_config.py"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Bose : boutons physiques",
+      "type": "process",
+      "command": "python3",
+      "args": ["scripts/dev.py", "buttons"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    }
+  ]
+}

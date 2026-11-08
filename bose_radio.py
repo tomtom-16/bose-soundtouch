@@ -34,6 +34,8 @@ Relocating to an always-on host (Pi / NAS):
 """
 import sys, os, json, socket, ssl, re, time, threading, subprocess, argparse, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import xml.etree.ElementTree as ET
+import urllib.parse
 
 # Windows consoles default to cp1252 which can't print ▶/■ — force UTF-8.
 for _s in (sys.stdout, sys.stderr):
@@ -47,6 +49,7 @@ DATA_DIR = os.path.abspath(os.environ.get("BOSE_DATA_DIR", os.path.join(HERE, "d
 CONFIG_PATH   = os.path.join(CONFIG_DIR, "config.json")
 STATIONS_PATH = os.path.join(CONFIG_DIR, "stations.json")
 SPEAKERS_PATH = os.path.join(CONFIG_DIR, "speakers.json")
+PRESETS_PATH  = os.path.join(CONFIG_DIR, "presets.json")
 STATE_PATH    = os.path.join(DATA_DIR, "state.json")   # last intended playback (for watchdog)
 
 # --- watchdog support: track which speaker IPs currently have an open stream ---
@@ -277,19 +280,63 @@ def api_master_ip(cfg):
     _, default_ip = find_speaker(q)
     return zone_master_ip(default_ip)
 
-def api_play(cfg, station_id, volume=None):
-    master = api_master_ip(cfg)
-    force_invalid(master)          # free the engine — push won't take over an active source
+def api_target_ip(target):
+    """Only configured speakers may be selected by the web API."""
+    sp = load_json(SPEAKERS_PATH, {})
+    for name, d in sp.items():
+        if target in (name, d.get("ip")):
+            return d["ip"]
+    raise ValueError(f"Unknown speaker: {target}")
+
+
+def detach_speaker(ip):
+    """Detach a member, or dissolve the zone when selecting its master."""
+    master = get_zone_master(ip)
+    if not master:
+        return
+    with urllib.request.urlopen(f"http://{master}:8090/getZone", timeout=4) as response:
+        zone = ET.fromstring(response.read())
+    members = [m for m in zone.findall("member")
+               if master == ip or m.get("ipaddress") == ip]
+    if not members:
+        return
+    body = ET.Element("zone", master=zone.attrib["master"])
+    body.extend(members)
+    with urllib.request.urlopen(urllib.request.Request(
+            f"http://{master}:8090/removeZone", data=ET.tostring(body),
+            headers={"Content-Type": "text/xml"}), timeout=5) as response:
+        response.read()
+
+
+def api_play(cfg, station_id, volume=None, target=None):
+    # Omitted target preserves existing API clients and the sync configuration.
+    group = target == "all" or (target is None and cfg.get("sync", True))
+    master = api_target_ip(target) if target and target != "all" else api_master_ip(cfg)
+    if station_id not in load_json(STATIONS_PATH, {}):
+        raise ValueError(f"Unknown station: {station_id}")
+    if not group:
+        detach_speaker(master)
+    force_invalid(master)
     time.sleep(1.5)
-    play(cfg, station_id, master, volume)   # push + volume + state.json (watchdog intent)
-    if cfg.get("sync", True):
-        time.sleep(1.5)            # let the master start before grouping
+    play(cfg, station_id, master, volume)
+    if group:
+        time.sleep(1.5)
         build_zone(master)
-    if volume is not None:         # volume applies to the whole group, not just the master
+    if group and volume is not None:
         for d in load_json(SPEAKERS_PATH, {}).values():
             if d.get("ip") and d["ip"] != master:
                 set_volume(d["ip"], volume)
     return master
+
+
+def api_stop_target(target):
+    ip = api_target_ip(target)
+    detach_speaker(ip)
+    standby(ip)
+    if load_json(STATE_PATH, {}).get("master_ip") == ip:
+        try: os.remove(STATE_PATH)
+        except OSError: pass
+
 
 def api_stop_all():
     """The app's Stop/Off semantics: EVERYTHING off, regardless of which speaker
@@ -317,15 +364,22 @@ def api_stop_all():
 def api_status(cfg):
     stations = [{"id": k, "note": (v.get("note", "") if isinstance(v, dict) else "")}
                 for k, v in load_json(STATIONS_PATH, {}).items()]
-    out = {"station": (load_json(STATE_PATH, {}) or {}).get("station"),
-           "stations": stations, "speakers": []}
+    state = load_json(STATE_PATH, {}) or {}
+    out = {"station": state.get("station"),
+           "stations": stations, "speakers": [],
+           "presets": load_json(PRESETS_PATH, {}),
+           "default_speaker": cfg.get("master") or next(iter(load_json(SPEAKERS_PATH, {})), None)}
     for name, d in load_json(SPEAKERS_PATH, {}).items():
         try:
-            src, ps, _ = now_playing_fields(d["ip"])
+            src, ps, title = now_playing_fields(d["ip"])
         except Exception:
-            src, ps = "unreachable", ""
+            src, ps, title = "unreachable", "", ""
+        station = title if any(s["id"] == title for s in stations) else None
+        if not station and d["ip"] == state.get("master_ip") and src == "UPNP":
+            station = state.get("station")
         out["speakers"].append({"name": name, "ip": d["ip"], "source": src,
-                                "playStatus": ps, "volume": get_volume(d["ip"])})
+                                "playStatus": ps, "volume": get_volume(d["ip"]),
+                                "station": station, "title": title})
     return out
 
 CONTROL_PAGE = """<!doctype html><html><head><meta charset="utf-8">
@@ -354,9 +408,19 @@ transition:background .4s;min-height:88px;display:flex;align-items:center;gap:14
 #hero.live .eq span{animation:eq 1s ease-in-out infinite}
 #hero.live .eq span:nth-child(2){animation-delay:.25s}#hero.live .eq span:nth-child(3){animation-delay:.5s}
 @keyframes eq{0%,100%{height:25%}50%{height:100%}}
-#hero .t{min-width:0}
+#hero .t{min-width:0;flex:1}
 #hTitle{font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hSub{font-size:13px;color:#cbd5e1;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ---- speaker selection ---- */
+.targets{display:flex;align-items:center;gap:10px}
+#target{display:flex;flex:1;min-width:0;overflow-x:auto;background:var(--bg);border-radius:12px;padding:4px;gap:4px}
+.target-btn{flex:1 0 auto;min-height:44px;padding:10px 12px;border:0;border-radius:9px;background:transparent;
+color:var(--dim);font:inherit;font-size:14px;cursor:pointer}
+#target .target-btn[aria-pressed="true"]{background:var(--card2);color:var(--txt);box-shadow:0 1px 4px #0004}
+#targetAll{flex:none;background:var(--card2)}
+#targetAll[aria-pressed="true"]{background:var(--accD);color:#fff}
+.target-btn:disabled{opacity:.5;cursor:wait}
+.target-btn:focus-visible,#stop:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 /* ---- volume cluster ---- */
 .panel{background:var(--card);border-radius:18px;padding:14px;margin-bottom:16px}
 .vrow{display:flex;align-items:center;gap:12px}
@@ -378,6 +442,7 @@ input[type=range]{flex:1;height:44px;accent-color:var(--acc)}
 .tile{position:relative;border:0;border-radius:18px;padding:16px 14px;min-height:92px;color:#fff;text-align:left;
 display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
 .tile:active{transform:scale(.97)}
+.tile .preset{font-size:12px;font-weight:700;margin-bottom:8px;opacity:.85}
 .tile .nm{font-size:16px;font-weight:700}
 .tile .nt{font-size:11px;opacity:.75;margin-top:4px;overflow:hidden;display:-webkit-box;
 -webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -385,8 +450,9 @@ display:flex;flex-direction:column;justify-content:space-between;overflow:hidden
 .tile.playing{outline:2px solid #fff6}
 .tile.playing .badge{opacity:1}
 /* ---- stop ---- */
-#stop{display:block;width:100%;padding:17px;margin-top:18px;font-size:17px;font-weight:600;border:0;
-border-radius:18px;background:var(--danger);color:#fff}
+#stop{display:flex;flex:none;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;
+border-radius:14px;background:#ffffff20;color:#fff;cursor:pointer}
+#stop[hidden]{display:none}
 #stop:active{opacity:.8}
 .toast{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom));transform:translateX(-50%);
 background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none}
@@ -395,8 +461,11 @@ background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;
 <header><h1>Bose Radio</h1><div id="conn"><span class="dot"></span><span id="connTxt">…</span></div></header>
 
 <div id="hero"><div class="eq"><span></span><span></span><span></span></div>
-<div class="t"><div id="hTitle">Off</div><div id="hSub">Tap a station to play everywhere</div></div></div>
+<div class="t"><div id="hTitle">Off</div><div id="hSub">Choisir une enceinte puis une station</div></div>
+<button id="stop" hidden aria-label="Arrêter la lecture" title="Arrêter la lecture"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor"/></svg></button></div>
 
+<div class="panel targets"><div id="target" role="group" aria-label="Choisir une enceinte"></div>
+  <button id="targetAll" class="target-btn" aria-pressed="false">Toutes</button></div>
 <div class="panel">
   <div class="vrow">
     <button class="vbtn" id="vdn">&minus;</button>
@@ -410,29 +479,44 @@ background:#000c;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;
 
 <div class="sec">Stations</div>
 <div id="grid"></div>
-<button id="stop">■&ensp;Stop / Off</button>
 <div class="toast" id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);
-let busy=false,volT=null,spkT={},lastTouch=0;
+let busy=false,volT=null,spkT={},lastTouch=0,currentStatus=null,tileSignature='';
+let selectedTarget='';
+const targetLabel=()=>selectedTarget==='all'?'Toutes les enceintes':
+  currentStatus?.speakers.find(s=>s.ip===selectedTarget)?.name||'une enceinte';
+const targetQuery=()=>'?speaker='+encodeURIComponent(selectedTarget);
+function disableTargets(disabled){
+  Array.from($('target').children).forEach(b=>b.disabled=disabled);$('targetAll').disabled=disabled;
+}
+function selectTarget(value){if(busy)return;selectedTarget=value;clearTimeout(volT);lastTouch=0;
+  if(currentStatus)render(currentStatus)}
 const touch=()=>lastTouch=Date.now();          // suppress poll updates while user interacts
 const idle=()=>Date.now()-lastTouch>1200;
 const pretty=s=>s.replace(/-/g,' ').replace(/\\b\\w/g,c=>c.toUpperCase());
 const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
-async function api(p){const r=await fetch(p);return r.json().catch(()=>({}))}
+async function api(p){const r=await fetch(p);const data=await r.json();
+  if(!r.ok||data.ok===false)throw new Error(data.error||'Request failed');return data}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
 
 function buildTiles(stations){
+  $('grid').replaceChildren();
   stations.forEach(s=>{
     const b=document.createElement('button');b.className='tile';b.id='st-'+s.id;
     const h=hue(s.id);
     b.style.background=`linear-gradient(135deg,hsl(${h} 45% 30%),hsl(${h} 55% 16%))`;
-    b.innerHTML=`<span class="badge">▶ PLAYING</span><span class="nm">${pretty(s.id)}</span>
-                 <span class="nt">${s.note||'Internet radio'}</span>`;
+    b.innerHTML='<span class="badge">▶ PLAYING</span><span class="preset"></span><span class="nm"></span><span class="nt"></span>';
+    b.querySelector('.preset').textContent=s.numbers.length?'Preset '+s.numbers.join(' / '):'Sans preset';
+    b.querySelector('.nm').textContent=pretty(s.id);
+    b.querySelector('.nt').textContent=s.note||'Internet radio';
     b.onclick=async()=>{if(busy)return;busy=true;touch();
       b.querySelector('.nm').textContent='Starting…';
-      await api('/api/play/'+encodeURIComponent(s.id)+'?volume='+$('vol').value);
-      b.querySelector('.nm').textContent=pretty(s.id);busy=false;toast(pretty(s.id)+' on all speakers');refresh()};
+      disableTargets(true);
+      try{await api('/api/play/'+encodeURIComponent(s.id)+targetQuery()+'&volume='+$('vol').value);
+        toast(pretty(s.id)+' → '+targetLabel())}
+      catch(e){toast('Erreur : '+e.message)}
+      finally{b.querySelector('.nm').textContent=pretty(s.id);busy=false;disableTargets(false);refresh()}};
     $('grid').appendChild(b)});
 }
 function buildSpeakers(speakers){
@@ -442,36 +526,60 @@ function buildSpeakers(speakers){
       <input type="range" min="0" max="70" value="${s.volume??30}">`;
     const sl=r.querySelector('input');
     sl.oninput=()=>{touch();clearTimeout(spkT[s.ip]);
-      spkT[s.ip]=setTimeout(()=>api('/api/volume/'+sl.value+'?ip='+s.ip),350)};
+      spkT[s.ip]=setTimeout(()=>api('/api/volume/'+sl.value+'?ip='+s.ip).catch(e=>toast(e.message)),350)};
     $('spkList').appendChild(r)});
 }
 function render(st){
+  currentStatus=st;
+  if(!$('target').childElementCount){
+    st.speakers.forEach(s=>{
+      const b=document.createElement('button');b.className='target-btn';b.textContent=s.name;
+      b.value=s.ip;b.onclick=()=>selectTarget(s.ip);$('target').appendChild(b);
+    });
+    const preferred=st.speakers.find(s=>s.name===st.default_speaker||s.ip===st.default_speaker);
+    if(!selectedTarget)selectedTarget=preferred?.ip||st.speakers[0]?.ip||'all';
+  }
+  const target=selectedTarget;
+  Array.from($('target').children).forEach(b=>b.setAttribute('aria-pressed',String(b.value===target)));
+  $('targetAll').setAttribute('aria-pressed',String(target==='all'));
+  const selected=st.speakers.find(s=>s.ip===target);
+  const mapping={...(st.presets?.default||{}),...(selected?st.presets?.[selected.name]||{}:{})};
+  const stations=st.stations.map(s=>({...s,numbers:Object.keys(mapping)
+    .filter(n=>/^[1-6]$/.test(n)&&mapping[n]===s.id).map(Number).sort((a,b)=>a-b)}))
+    .sort((a,b)=>(a.numbers[0]??99)-(b.numbers[0]??99));
+  const signature=JSON.stringify(stations);
+  if(signature!==tileSignature){buildTiles(stations);tileSignature=signature}
   $('conn').classList.remove('off');$('connTxt').textContent=
     st.speakers.filter(s=>s.playStatus=='PLAY_STATE').length+'/'+st.speakers.length+' playing';
-  if($('grid').childElementCount===0)buildTiles(st.stations);
   if($('spkList').childElementCount===0)buildSpeakers(st.speakers);
-  const live=!!st.station&&st.speakers.some(s=>s.playStatus=='PLAY_STATE');
+  const active=st.speakers.filter(s=>(!selected||s.ip===selected.ip)&&s.playStatus==='PLAY_STATE');
+  const live=active.length>0;
+  const playingStation=active.length&&active.every(s=>s.station===active[0].station)?active[0].station:null;
   $('hero').classList.toggle('live',live);
-  $('hTitle').textContent=live?pretty(st.station):'Off';
-  const note=(st.stations.find(x=>x.id===st.station)||{}).note;
-  $('hSub').textContent=live?(note||'Playing on all speakers'):'Tap a station to play everywhere';
-  st.stations.forEach(s=>$('st-'+s.id).classList.toggle('playing',live&&s.id===st.station));
+  $('stop').hidden=!live;
+  $('hTitle').textContent=live?(playingStation?pretty(playingStation):active.length>1?'Plusieurs sources':active[0].title||'En lecture'):'Off';
+  $('hSub').textContent=live?'En lecture : '+active.map(s=>s.name).join(', '):'Choisir une enceinte puis une station';
+  st.stations.forEach(s=>$('st-'+s.id).classList.toggle('playing',live&&s.id===playingStation));
   st.speakers.forEach(s=>{const r=$('sp-'+s.ip);if(!r)return;
     r.querySelector('.st').classList.toggle('on',s.playStatus=='PLAY_STATE');
     if(idle()&&s.volume!=null)r.querySelector('input').value=s.volume});
-  if(idle()){const v=st.speakers.find(s=>s.volume!=null);
-    if(v){$('vol').value=v.volume;$('vv').textContent=v.volume}}
+  if(idle()){const v=selected||st.speakers.find(s=>s.volume!=null);
+    if(v&&v.volume!=null){$('vol').value=v.volume;$('vv').textContent=v.volume}}
 }
 async function refresh(){try{render(await api('/api/status'))}
   catch(e){$('conn').classList.add('off');$('connTxt').textContent='offline'}}
+function selectedVolumeQuery(){return selectedTarget==='all'?'':'?ip='+encodeURIComponent(selectedTarget)}
+$('targetAll').onclick=()=>selectTarget('all');
 function setGroupVol(v){v=Math.max(0,Math.min(70,v));$('vol').value=v;$('vv').textContent=v;touch();
-  clearTimeout(volT);volT=setTimeout(()=>api('/api/volume/'+v),350)}
+  clearTimeout(volT);const query=selectedVolumeQuery();volT=setTimeout(()=>api('/api/volume/'+v+query).catch(e=>toast(e.message)),350)}
 $('vol').oninput=()=>setGroupVol(+$('vol').value);
 $('vdn').onclick=()=>setGroupVol(+$('vol').value-5);
 $('vup').onclick=()=>setGroupVol(+$('vol').value+5);
 $('spkToggle').onclick=()=>{const o=$('spkList').classList.toggle('open');
   $('spkToggle').textContent=o?'Speakers ▾':'Speakers ▸'};
-$('stop').onclick=async()=>{if(busy)return;busy=true;touch();await api('/api/stop');busy=false;toast('Speakers off');refresh()};
+$('stop').onclick=async()=>{if(busy)return;busy=true;touch();disableTargets(true);
+  try{await api('/api/stop'+targetQuery());toast('Arrêt : '+targetLabel())}
+  catch(e){toast('Erreur : '+e.message)}finally{busy=false;disableTargets(false);refresh()}};
 refresh();setInterval(refresh,5000);
 </script></body></html>"""
 
@@ -503,11 +611,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
         m = re.match(r"/api/play/(.+)$", path)
         if m:
             station = urllib.parse.unquote(m.group(1))
-            vol = int(qs["volume"][0]) if qs.get("volume") else None
             try:
-                master = api_play(cfg, station, vol)
+                vol = int(qs["volume"][0]) if qs.get("volume") else None
+                master = api_play(cfg, station, vol, qs.get("speaker", [None])[0])
                 return self._json({"ok": True, "station": station, "master": master})
-            except SystemExit as e:           # unknown station / wedged renderer
+            except (SystemExit, ValueError) as e:  # invalid request
                 return self._json({"ok": False, "error": str(e)}, 400)
             except Exception as e:
                 return self._json({"ok": False, "error": str(e)}, 500)
@@ -521,7 +629,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "volume": vol, "ip": one_ip})
         if path == "/api/stop":
             try:
-                api_stop_all()                # everything off, regardless of zone shape
+                target = qs.get("speaker", [None])[0]
+                if target and target != "all":
+                    api_stop_target(target)
+                else:
+                    api_stop_all()
                 return self._json({"ok": True})
             except Exception as e:
                 return self._json({"ok": False, "error": str(e)}, 500)
@@ -778,7 +890,6 @@ def stop(speaker_q, standby=True):
 
 # ------------------------------------------------------------------ main -----
 def main():
-    import urllib.parse  # noqa
     cfg = get_config()
     ap = argparse.ArgumentParser(description="Bose SoundTouch local radio")
     sub = ap.add_subparsers(dest="cmd")

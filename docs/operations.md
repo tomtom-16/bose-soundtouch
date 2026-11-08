@@ -1,5 +1,29 @@
 # Exploitation et migration
 
+## Déploiement sur la LXC
+
+La cible reste une LXC Linux avec Docker Engine et Compose v2 fonctionnels.
+Le même code tourne localement avec Python et en production dans les deux
+services `bose-radio` (proxy, interface web et API) et `bose-buttons` (listener).
+Il n'y a pas de troisième conteneur web à ajouter : l'interface est servie par
+`bose_radio.py serve`, sur le même port que les flux radio.
+VS Code et les dépendances de débogage ne sont pas requis
+sur la LXC. Le lanceur `scripts/dev.py` sert uniquement au lancement local.
+
+Installer le dépôt dans un dossier dédié de la LXC, puis suivre la procédure de
+migration ci-dessous si une ancienne stack existe déjà. Pour une installation
+neuve : lancer `python3 scripts/init_config.py`, renseigner les quatre JSON, puis
+exécuter `docker compose config` et `docker compose up -d --build`.
+Utiliser un `.env` propre à la LXC avec les chemins de cette installation ; ne pas
+copier les données ou les réglages de test du Mac sur une installation existante.
+
+Le réseau hôte de Compose est celui de la LXC : `proxy_host` doit annoncer son
+IP LAN joignable depuis les enceintes. Vérifier l'accès à l'interface avec
+`http://<IP-LXC>:8077/`, puis aux API Bose depuis la LXC sur les ports 8090/8091
+et au WebSocket sur 8080. Conserver l'interface et l'API sur le réseau local.
+Les contraintes de Docker imbriqué dépendent de la configuration de l'hôte LXC ;
+elles restent à vérifier sur le serveur avant le premier déploiement.
+
 ## Passer de l'ancienne stack à cette organisation
 
 Cette préparation a été faite sur la copie du Mac. Le serveur n'a pas été modifié.
@@ -24,6 +48,47 @@ et Dockerfiles ont changé.
 
 Les noms de conteneurs et le port restent identiques : arrêter l'ancienne stack
 avant de lancer la nouvelle. La migration n'écrit aucune présélection dans les Bose.
+
+### Ancienne installation avec seulement le proxy/presets et le listener
+
+Avant la migration, relever les noms et montages réels, sans supposer que les
+conteneurs de l'ancienne installation portent les noms du nouveau Compose :
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+docker inspect NOM_ANCIEN_CONTENEUR --format '{{json .Mounts}}'
+```
+
+Sauvegarder aussi les fichiers des montages situés hors du dossier de l'ancienne
+stack. S'ils sont uniquement dans le conteneur, les extraire avec `docker cp`
+avant de supprimer celui-ci. Les quatre JSON du serveur font référence ; ne pas
+les remplacer par les configurations du Mac ou les modèles.
+
+Pour transférer le code sans publier les réglages privés, pousser le commit du
+Mac sur le dépôt Git, puis cloner ce dépôt dans un **nouveau dossier** de la LXC.
+Autre possibilité sans push : créer une archive du commit sur le Mac avec
+`git archive --format=tar.gz --output=/tmp/bose-soundtouch-code.tar.gz HEAD`,
+la transférer par `scp` et l'extraire dans le nouveau dossier de la LXC.
+Cette archive contient uniquement les fichiers versionnés.
+
+Suivre ensuite les étapes 1 à 7 ci-dessus. Après le démarrage :
+
+```bash
+docker compose ps
+docker compose logs --tail=50 bose-radio bose-buttons
+curl -fS http://127.0.0.1:8077/ -o /dev/null
+curl -fS http://127.0.0.1:8077/api/status
+```
+
+Adapter `8077` si `proxy_port` est différent. Depuis un navigateur du réseau local,
+ouvrir `http://<IP-LXC>:8077/`, tester une station sur une enceinte puis le mode
+**Toutes**, et vérifier les boutons physiques. Le port doit être accessible depuis
+le LAN et les enceintes ; le réseau hôte ne demande pas de mapping Docker.
+Ne laisser tourner qu'un seul listener pour les mêmes enceintes.
+
+En cas de problème, arrêter la nouvelle stack avec `docker compose down`, puis
+relancer l'ancienne avec `docker compose up -d` depuis son dossier sauvegardé.
+Conserver les anciens fichiers et images jusqu'à validation de la migration.
 
 ## Opérations courantes
 

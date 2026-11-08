@@ -44,6 +44,21 @@ cibles sont absents. Les fichiers copiés du serveur sont déjà présents sur c
 ils n'ont pas été remplacés par les modèles.
 
 L'adresse de l'interface web est `http://<IP-du-serveur>:8077/`.
+Le contrôle segmenté permet de choisir une enceinte. Pour une lecture synchronisée,
+choisir **Toutes**, puis toucher une station. Lecture et volume
+principal suivent ce choix, ainsi que le bouton d’arrêt en haut à droite du bloc
+de lecture, visible uniquement quand la sélection joue. Le panneau **Speakers** propose en plus le
+volume individuel de chaque enceinte. Lancer une station ou arrêter la lecture
+sur une enceinte seule la détache de son groupe éventuel ; si elle était maître,
+le groupe est dissous.
+
+Les stations sont affichées dans l'ordre des presets physiques 1 à 6, avec leur
+numéro sur chaque bouton, à partir de `config/presets.json`. Les correspondances
+propres à l'enceinte choisie remplacent celles de `default` ; en mode toutes les
+enceintes, l'interface affiche `default`. Les stations sans preset viennent après.
+Le choix explicite de toutes les enceintes active une lecture synchronisée même
+si `sync` vaut `false` (ce réglage reste utilisé par les boutons physiques).
+
 Le proxy et l'API n'ont pas d'authentification : les conserver sur le réseau local.
 La stack utilise le réseau hôte Linux, notamment pour annoncer une adresse
 accessible aux enceintes. Le Mac sert ici à développer et préparer le dépôt ;
@@ -65,8 +80,9 @@ est incorrecte, renseigner l'IP LAN du serveur dans `config/config.json`.
 Les modèles gardent `sync: false` et `watchdog: false`, comme la stack actuelle.
 Le port se règle dans le JSON ; avec le réseau hôte, il n'y a pas de mapping de port.
 
-`.env` est lu par **Compose**. Les scripts lancés directement ne chargent pas ce
-fichier. Par défaut ils lisent `config/` et écrivent dans `data/`, relativement au
+`.env` est lu par **Compose** et par le lanceur local `scripts/dev.py`.
+Les scripts lancés directement ne chargent pas ce fichier.
+Par défaut ils lisent `config/` et écrivent dans `data/`, relativement au
 code. Ils acceptent aussi les variables d'environnement `BOSE_CONFIG_DIR` et
 `BOSE_DATA_DIR` (cette dernière concerne Python). Compose fixe leurs valeurs
 internes à `/app/config` et `/app/data`, distinctes des chemins sur l'hôte.
@@ -84,10 +100,41 @@ python3 scripts/init_config.py
 npm ci
 python3 bose_radio.py --help
 python3 bose_radio.py list
-python3 bose_radio.py serve
+python3 scripts/dev.py server
 # Dans un autre terminal :
-node button_listener.js
+python3 scripts/dev.py buttons
 ```
+
+Ouvrir `http://localhost:8077/` (ou le port défini dans `config/config.json`).
+Le serveur web seul suffit pour tester l'interface ; le listener est nécessaire
+pour tester les boutons physiques. Pour utiliser les enceintes depuis le Mac,
+leurs IP doivent être joignables et `proxy_host` doit être l'IP LAN du Mac, ou
+`auto`, plutôt que `localhost`. Le port du proxy doit être accessible aux Bose.
+Éviter de lancer deux listeners pour les mêmes enceintes : arrêter celui de la
+LXC pendant les essais des boutons. Les commandes de lecture et d'arrêt de
+l'interface agissent sur les enceintes réellement configurées.
+
+Dans **VS Code**, installer les extensions Python et Python Debugger de Microsoft,
+sélectionner l'interpréteur Python 3, puis lancer **Bose : serveur web local** avec
+F5. Les points d'arrêt fonctionnent dans `bose_radio.py`. Le menu
+**Terminal → Exécuter la tâche** propose la préparation des fichiers et le listener
+(après `npm ci`). Arrêter le serveur avec le débogueur ou Ctrl-C dans le terminal.
+
+Pour isoler des essais, copier `.env.example` vers `.env.local`, y indiquer des
+dossiers de configuration et de données distincts, puis lancer :
+
+```bash
+python3 scripts/dev.py server --env-file .env.local
+```
+
+Préparer ces dossiers avec une copie des modèles `config/*.example.json`, renommés
+sans `.example`, et un dossier de données vide. Un `speakers.json` contenant `{}`
+permet de tester l'affichage sans interroger d'enceinte. Dans VS Code, ajouter
+`"--env-file", "${workspaceFolder}/.env.local"` à `args` pour utiliser ce fichier.
+Le format pris en charge est `KEY=value`, avec guillemets facultatifs et commentaires
+sur des lignes séparées ; pas d'interpolation `${…}` ni de commande shell.
+Les variables déjà présentes dans l'environnement ont priorité sur le fichier.
+Les chemins de dossiers relatifs sont résolus depuis la racine du projet.
 
 `python3 bose_radio.py discover` utilise `dns-sd` sur macOS et écrit dans
 `config/speakers.json`. Pour une configuration manuelle, récupérer le `deviceID`
