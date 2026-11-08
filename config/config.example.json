@@ -1,5 +1,6 @@
 {
   "proxy_host": "auto",
   "proxy_port": 8077,
-  "sync": true
+  "sync": false,
+  "watchdog": false
 }

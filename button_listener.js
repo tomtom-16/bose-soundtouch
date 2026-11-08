@@ -15,10 +15,10 @@ const fs   = require('fs');
 const path = require('path');
 const http = require('http');
 const dgram = require('dgram');
-const WebSocket = require(path.join(__dirname, 'node_modules', 'ws'));
+const WebSocket = require('ws');
 
-const HERE = __dirname;
-const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(HERE, f))); } catch { return d; } };
+const CONFIG_DIR = path.resolve(process.env.BOSE_CONFIG_DIR || path.join(__dirname, 'config'));
+const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, f))); } catch { return d; } };
 
 function proxyHost(cfg, speakerIp) {
   if (cfg.proxy_host && cfg.proxy_host !== 'auto') return Promise.resolve(cfg.proxy_host);
@@ -149,6 +149,7 @@ function connect(name, ip, cfg) {
     const m = s.match(/<nowSelectionUpdated><preset id="(\d)"/);
     if (!m) return;
     const id = m[1];
+    if (id === '0') return; // Ignore non-preset selection events
     const map = presetMapFor(name);
     const station = map[id];
     if (!station) { console.log(`[${name}] preset ${id} pressed — no mapping, ignored`); return; }
@@ -183,7 +184,7 @@ function main(){
   const cfg = rd('config.json', {proxy_port:8077, proxy_host:'auto'});
   const speakers = rd('speakers.json', {});
   const names = Object.keys(speakers);
-  if (!names.length){ console.error('no speakers.json — run: ./bose_radio.py discover'); process.exit(1); }
+  if (!names.length){ console.error('no speakers.json — configure config/speakers.json or run: python3 bose_radio.py discover'); process.exit(1); }
   console.log('Bose button listener starting for:', names.join(', '));
   for (const name of names) connect(name, speakers[name].ip, cfg);
 }

@@ -1,8 +1,0 @@
-{
-  "default": {
-    "1": "groove-salad",
-    "2": "drone-zone",
-    "3": "newsradio"
-  },
-  "_comment": "Map physical preset buttons (1-6) to stations in stations.json. 'default' applies to all speakers; add a per-speaker block by speaker name (e.g. 'Living Room': {'1':'somafm'}) to override. Edits apply on the next button press - no restart needed."
-}

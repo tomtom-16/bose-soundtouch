@@ -1,0 +1,26 @@
+{
+  "groove-salad": {
+    "url": "http://ice1.somafm.com/groovesalad-128-mp3",
+    "note": "SomaFM Groove Salad"
+  },
+  "drone-zone": {
+    "url": "http://ice1.somafm.com/dronezone-128-mp3",
+    "note": "SomaFM Drone Zone"
+  },
+  "fun-radio": {
+    "url": "https://icecast.funradio.fr/fun-1-44-128",
+    "note": "Fun Radio"
+  },
+  "contact-fm": {
+    "url": "tunein:s25843",
+    "note": "Contact FM"
+  },
+  "rmc": {
+    "url": "https://audio.bfmtv.com/rmcradio_128.mp3",
+    "note": "RMC"
+  },
+  "nrj": {
+    "url": "https://streaming.nrjaudio.fm/oumvmk8fnozc?origine=fluxradios",
+    "note": "NRJ France"
+  }
+}

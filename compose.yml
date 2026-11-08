@@ -1,0 +1,42 @@
+services:
+  bose-radio:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: bose-radio
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      BOSE_CONFIG_DIR: /app/config
+      BOSE_DATA_DIR: /app/data
+    volumes:
+      - type: bind
+        source: ${BOSE_CONFIG_DIR:-./config}
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BOSE_DATA_DIR:-./data}
+        target: /app/data
+        bind:
+          create_host_path: false
+
+  bose-buttons:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.listener
+    container_name: bose-buttons
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - bose-radio
+    environment:
+      BOSE_CONFIG_DIR: /app/config
+    volumes:
+      - type: bind
+        source: ${BOSE_CONFIG_DIR:-./config}
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false

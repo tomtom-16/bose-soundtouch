@@ -1,4 +1,23 @@
+# Configuration propre à chaque installation
+.env
+.env.*
+!.env.example
+/config/*.json
+!/config/*.example.json
+
+# Données, historiques privés et sauvegardes
+/data/*
+!/data/.gitkeep
+/local/
+*.backup*
+*.orig
+/state.json
+/speakers.json
+
+# Dépendances et fichiers générés
 node_modules/
+__pycache__/
+*.py[cod]
+.venv/
 *.log
-state.json
-speakers.json
+.DS_Store

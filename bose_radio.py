@@ -29,7 +29,7 @@ Usage
 Speaker + station names are matched case-insensitively on a substring.
 
 Relocating to an always-on host (Pi / NAS):
-  copy this folder there, set PROXY_HOST in config.json to that host's LAN IP
+  copy this folder there, set proxy_host in config/config.json to that host's LAN IP
   (reachable by the speakers), run `serve` under systemd/launchd, done.
 """
 import sys, os, json, socket, ssl, re, time, threading, subprocess, argparse, urllib.request
@@ -42,10 +42,12 @@ for _s in (sys.stdout, sys.stderr):
         except Exception: pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH   = os.path.join(HERE, "config.json")
-STATIONS_PATH = os.path.join(HERE, "stations.json")
-SPEAKERS_PATH = os.path.join(HERE, "speakers.json")
-STATE_PATH    = os.path.join(HERE, "state.json")   # last intended playback (for watchdog)
+CONFIG_DIR = os.path.abspath(os.environ.get("BOSE_CONFIG_DIR", os.path.join(HERE, "config")))
+DATA_DIR = os.path.abspath(os.environ.get("BOSE_DATA_DIR", os.path.join(HERE, "data")))
+CONFIG_PATH   = os.path.join(CONFIG_DIR, "config.json")
+STATIONS_PATH = os.path.join(CONFIG_DIR, "stations.json")
+SPEAKERS_PATH = os.path.join(CONFIG_DIR, "speakers.json")
+STATE_PATH    = os.path.join(DATA_DIR, "state.json")   # last intended playback (for watchdog)
 
 # --- watchdog support: track which speaker IPs currently have an open stream ---
 # The master speaker pulls from the proxy directly; members relay off the master
@@ -74,6 +76,7 @@ def load_json(path, default):
         return default
 
 def save_json(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f: json.dump(obj, f, indent=2, ensure_ascii=False)
 
 def get_config():

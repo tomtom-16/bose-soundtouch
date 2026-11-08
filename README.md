@@ -1,152 +1,116 @@
-# bose-soundtouch — local internet radio for SoundTouch speakers (post-cloud)
+# Bose SoundTouch — radios et boutons locaux
 
-Bose shut down the SoundTouch cloud in **May 2026**, killing TuneIn presets and
-most streaming on these otherwise-fine speakers. This project brings internet
-radio back — **no Bose account, no cloud, fully local** — including synchronized
-multiroom, working physical preset buttons, a self-healing watchdog, and a
-phone web app.
+Cette adaptation du projet [fredgaiotti/bose-soundtouch](https://github.com/fredgaiotti/bose-soundtouch)
+permet de lancer des radios avec les six boutons physiques de Bose SoundTouch 10.
+Deux services tournent sur un serveur Linux : un proxy Python qui relaie le MP3
+à la demande, et un listener Node.js qui reçoit les événements des enceintes.
+La Bose décode le son ; aucun transcodage ni flux radio permanent n'est ajouté.
+Les radios Internet, et TuneIn pour les sources `tunein:…`, restent nécessaires.
 
-Built and tested on 3× **SoundTouch 10** (firmware 27.0.6). Other SoundTouch
-models expose the same UPnP/HTTP APIs and will likely work — reports welcome.
+Les scripts Python et Node restent à la racine pour garder les commandes simples.
 
-## What still works (and what doesn't) after the shutdown
+```text
+bose_radio.py            Proxy, interface web et commandes de contrôle
+button_listener.js      Écoute des boutons physiques
+compose.yml             Stack Linux : proxy + listener
+config/                 Modèles versionnés et configuration locale ignorée
+  *.example.json        Modèles à copier pour une nouvelle installation
+  *.json                Configuration effective, hors Git
+docker/                 Recettes de construction des deux images
+scripts/init_config.py  Initialisation sans écraser les fichiers existants
+data/                   État de lecture persistant, hors Git
+docs/                   Fonctionnement, exploitation et état du projet
+examples/               Services systemd, launchd et tâches Windows
+local/                  Historiques de conversation et sauvegardes, hors Git
+```
 
-| Method | Status |
-|---|---|
-| Old TuneIn presets | ❌ Dead — `UNKNOWN_SOURCE_ERROR` |
-| `LOCAL_INTERNET_RADIO` via `/select` | ❌ Rejected by ST-10 firmware (`error 1005`) |
-| **UPnP/DLNA push (port 8091)** | ✅ **Works — this is what this tool uses** |
-| Bluetooth / AUX | ✅ Still works (single speaker, no multiroom) |
-| Official SoundTouch app | ❌ Cloud-dependent, dead |
+## Démarrage sur un nouveau serveur Linux
 
-## How it works
-
-1. A small **proxy** (`bose_radio.py serve`, port 8077) runs on any always-on
-   machine (Pi, NAS, mini-PC). The speakers' old firmware can't handle HTTPS,
-   redirects, SHOUTcast `ICY 200 OK` responses, or playlist files — so the
-   speaker pulls plain HTTP from the proxy, and the proxy deals with the messy
-   upstream, including **live TuneIn token refresh** (stations configured as
-   `tunein:sXXXXX` resolve a fresh stream URL on every play).
-2. Playback is started by pushing `SetAVTransportURI` + `Play` to the speaker's
-   UPnP AVTransport endpoint (`http://<speaker>:8091/AVTransport/Control`).
-3. A **watchdog** thread inside `serve` self-heals dropouts (see below).
-4. `button_listener.js` makes the **physical preset buttons** work again.
-5. The proxy also serves a **phone web app** for control.
-
-## Quick start
+Prérequis : Python 3 pour préparer les fichiers, Docker Engine et Docker Compose v2.
+Depuis la racine du dépôt :
 
 ```bash
-git clone https://github.com/fredgaiotti/bose-soundtouch
-cd bose-soundtouch
-./bose_radio.py discover          # find speakers (mDNS) -> speakers.json
-./bose_radio.py list              # show speakers + stations
-./bose_radio.py serve             # run the proxy (keep it running)
-# in another shell:
-./bose_radio.py play groove-salad "Living Room" --volume 20
-./bose_radio.py status "Living Room"
-./bose_radio.py stop "Living Room"
+python3 scripts/init_config.py
+# Renseigner les IP, noms et deviceID dans config/speakers.json.
+# Vérifier config/config.json, stations.json et presets.json.
+docker compose config
+docker compose up -d --build
+docker compose logs --tail=50 bose-radio bose-buttons
+curl -sS http://127.0.0.1:8077/api/status
 ```
 
-Speaker and station names match case-insensitively on substrings.
-`discover` uses macOS `dns-sd`; on Linux/Windows, create `speakers.json` by
-hand from `speakers.example.json` (get each speaker's `deviceID` from
-`http://<speaker-ip>:8090/info`).
+Le script crée `.env` et copie les quatre modèles JSON uniquement si les fichiers
+cibles sont absents. Les fichiers copiés du serveur sont déjà présents sur ce Mac :
+ils n'ont pas été remplacés par les modèles.
 
-## Phone web app + HTTP API
+L'adresse de l'interface web est `http://<IP-du-serveur>:8077/`.
+Le proxy et l'API n'ont pas d'authentification : les conserver sur le réseau local.
+La stack utilise le réseau hôte Linux, notamment pour annoncer une adresse
+accessible aux enceintes. Le Mac sert ici à développer et préparer le dépôt ;
+le déploiement visé reste le serveur Linux/LXC.
 
-Open `http://<proxy-host>:8077/` on your phone (add to home screen). Station
-tiles, group volume with −/+ buttons, per-speaker volume sliders, stop, live
-now-playing status.
+## Configuration
 
-- `GET /api/status` — station + per-speaker source/playStatus/volume (JSON)
-- `GET /api/play/<station>?volume=N` — robust whole-house play
-- `GET /api/volume/<n>` — group volume (`?ip=<speaker-ip>` for one speaker)
-- `GET /api/stop` — everything off, regardless of zone shape
+| Fichier local | Rôle |
+|---|---|
+| `.env` | Chemins des dossiers montés par Compose ; voir `.env.example` |
+| `config/config.json` | `proxy_host`, `proxy_port`, `sync`, `watchdog` |
+| `config/speakers.json` | Noms, IP et identifiants réels des enceintes |
+| `config/stations.json` | Identifiants et URL des stations |
+| `config/presets.json` | Correspondance entre boutons et stations |
+| `data/state.json` | Dernière intention de lecture enregistrée par Python |
 
-**No authentication** — same trust domain as the speakers' own unauthenticated
-port 8090. Keep port 8077 LAN-only. **Never port-forward it to the internet.**
-(Siri/Shortcuts tip: a "Get Contents of URL" shortcut to `/api/play/...` gives
-voice control.)
+`proxy_host: "auto"` détermine l'IP annoncée aux enceintes. Si l'interface choisie
+est incorrecte, renseigner l'IP LAN du serveur dans `config/config.json`.
+Les modèles gardent `sync: false` et `watchdog: false`, comme la stack actuelle.
+Le port se règle dans le JSON ; avec le réseau hôte, il n'y a pas de mapping de port.
 
-## Stations (`stations.json`)
+`.env` est lu par **Compose**. Les scripts lancés directement ne chargent pas ce
+fichier. Par défaut ils lisent `config/` et écrivent dans `data/`, relativement au
+code. Ils acceptent aussi les variables d'environnement `BOSE_CONFIG_DIR` et
+`BOSE_DATA_DIR` (cette dernière concerne Python). Compose fixe leurs valeurs
+internes à `/app/config` et `/app/data`, distinctes des chemins sur l'hôte.
 
-```json
-{
-  "newsradio": { "url": "tunein:s24939", "note": "Any TuneIn station id" },
-  "myradio":   { "url": "http://direct.example.com/stream.mp3", "note": "Any direct stream" }
-}
+Les réglages locaux sont ignorés par Git ; pour partager de nouveaux réglages par
+défaut, mettre à jour volontairement le modèle correspondant après vérification.
+Aucun mot de passe n'est requis par cette application.
+
+## Développement sans Docker
+
+Python n'utilise que sa bibliothèque standard. Le listener nécessite Node.js et `ws`.
+
+```bash
+python3 scripts/init_config.py
+npm ci
+python3 bose_radio.py --help
+python3 bose_radio.py list
+python3 bose_radio.py serve
+# Dans un autre terminal :
+node button_listener.js
 ```
 
-TuneIn IDs: search tunein.com — the station URL ends in `.../sXXXXX`.
+`python3 bose_radio.py discover` utilise `dns-sd` sur macOS et écrit dans
+`config/speakers.json`. Pour une configuration manuelle, récupérer le `deviceID`
+avec `http://<IP-enceinte>:8090/info`. Les définitions de services dans `examples/`
+supposent que le dossier complet est installé au chemin indiqué ; adapter les chemins.
 
-## Physical preset buttons (`button_listener.js`)
+## Exploitation et état connu
 
-The firmware refuses to store custom sources in presets, and the old presets
-point at dead cloud services. Workaround: the listener watches each speaker's
-WebSocket (port 8080, subprotocol `gabbo`), catches preset presses instantly,
-and pushes the mapped station via UPnP. Map slots in `presets.json`. Requires
-Node + `npm install ws`.
+Voir [le guide d'exploitation](docs/operations.md) pour migrer la stack existante,
+modifier les radios et sauvegarder les réglages, et [l'état du projet](docs/project-status.md)
+pour les validations et les problèmes ouverts. La documentation d'origine est
+conservée dans [docs/upstream.md](docs/upstream.md) à titre de référence ; ses chemins
+à la racine et ses réglages par défaut précèdent cette réorganisation.
 
-With `"sync": true` (default in `config.json`) a button press groups **all**
-speakers into one synchronized zone, mastered by the pressed speaker.
+## Git et futur dépôt GitHub
 
-## Self-healing watchdog
+L'historique Git d'origine est conservé. Le remote `origin` pointe encore vers le
+projet de fredgaiotti ; aucun commit ni envoi distant n'a été effectué ici.
+Avant le premier commit, contrôler `git status` et `git diff --cached` après sélection
+des fichiers. `local/`, les configurations réelles, `.env` et l'état de lecture ne
+doivent pas apparaître dans les fichiers à publier.
 
-Streams die (upstream timeouts, host reboots) and the renderer handles it
-badly. The watchdog (inside `serve`) checks the zone master every 15s and
-re-pushes the last station when it sees either healable signature:
+Après création de votre dépôt GitHub, il sera possible de renommer le remote
+existant en `upstream`, puis d'ajouter votre dépôt comme `origin`.
 
-1. **Buffer-drain stall** — speaker claims `PLAY_STATE` but has no open
-   connection to the proxy (it never reconnects on its own).
-2. **`INVALID_SOURCE` with saved intent** — the renderer gave up entirely,
-   e.g. after the proxy host rebooted. This auto-resumes playback ~30s after
-   your server comes back.
-
-It never resurrects a deliberate stop or a speaker in STANDBY. Tunables
-(optional keys in `config.json`): `watchdog`, `watchdog_poll`,
-`watchdog_grace`, `watchdog_cooldown`.
-
-## Hard-won firmware quirks (read before hacking)
-
-These cost real debugging time. ST-10, firmware 27.0.6:
-
-- **A UPnP push only takes over from `INVALID_SOURCE`** — not from STANDBY,
-  and not while another stream is actively playing. To switch stations
-  programmatically, first `/select` a **bogus** TuneIn station (e.g.
-  `s99999999`) so the speaker fast-fails to `INVALID_SOURCE`, then push.
-  (The bogus id must not match any stored preset, or the button listener
-  triggers itself in a loop.)
-- **UPnP commands to a zone MEMBER return HTTP 500.** Always target the zone
-  **master**. Powering the master to standby cascades to the whole group.
-- **A member's `getZone` does not list the master's IP** in its `<member>`
-  entries — only the master's deviceID and a `senderIPAddress` attribute.
-  Resolve the master via your own deviceID table.
-- **The POWER key is a toggle.** Sending it to a speaker already in standby
-  wakes it up. Check `/now_playing` before "turning off".
-- **Old SPOTIFY presets hang in a sticky `BUFFERING` state ~13s** and block
-  UPnP takeover; dead TUNEIN presets fast-fail (good). If your preset slots
-  hold dead Spotify entries, overwrite them via `/storePreset` with dummy
-  TuneIn ids so button presses fail fast and the listener can take over.
-- **Heavy rapid API churn wedges the UPnP renderer** (500s, or 200-but-silent,
-  stuck `INVALID_SOURCE`). Only a physical power-cycle (~10s unplugged)
-  recovers it. Be gentle; don't stress-test on speakers you love.
-- Multiroom relay is efficient: the zone master makes **one** connection to
-  the proxy and relays to members itself.
-
-## Run it 24/7
-
-The proxy host must stay awake — a Raspberry Pi, NAS, or mini-PC is ideal.
-Ready-made service definitions in [`examples/`](examples/):
-
-- **Linux/Pi**: `boseradio.service` (systemd)
-- **macOS**: `com.example.boseradio.plist` (launchd)
-- **Windows**: `setup_tasks.ps1` (scheduled tasks; note: use `npm.cmd` if
-  PowerShell's execution policy blocks `npm.ps1`)
-
-Set `proxy_host` in `config.json` to the host's LAN IP if `auto` picks the
-wrong interface. If the host has a firewall, allow inbound TCP 8077 from your
-LAN only.
-
-## License
-
-MIT
+Licence MIT ; attribution et licence du projet d'origine conservées dans `LICENSE`.
