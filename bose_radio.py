@@ -153,6 +153,30 @@ def configure_speakers(rows):
             raise
         return result
 
+def configure_presets(changes):
+    """Update selected scopes while preserving other speakers' mappings."""
+    if not isinstance(changes, dict):
+        raise ValueError("Configuration des presets invalide.")
+    with _CONFIG_LOCK:
+        speakers_config = load_json(SPEAKERS_PATH, {})
+        stations = load_json(STATIONS_PATH, {})
+        result = dict(load_json(PRESETS_PATH, {}))
+        for scope, mapping in changes.items():
+            if scope != "default" and scope not in speakers_config:
+                raise ValueError("Enceinte inconnue ou renommée : " + scope)
+            if not isinstance(mapping, dict):
+                raise ValueError("Liste de presets invalide.")
+            for number, station in mapping.items():
+                if number not in ("1", "2", "3", "4", "5", "6"):
+                    raise ValueError("Les presets doivent être numérotés de 1 à 6.")
+                if station is None and scope != "default":
+                    continue  # Explicitly disable an inherited global preset.
+                if not isinstance(station, str) or station not in stations:
+                    raise ValueError("Station inconnue pour le preset " + number)
+            result[scope] = dict(mapping)
+        save_json(PRESETS_PATH, result)
+        return result
+
 def get_config():
     cfg = load_json(CONFIG_PATH, {})
     cfg.setdefault("proxy_port", 8077)
@@ -539,12 +563,14 @@ dialog::backdrop{background:#000a}
 h2{font-size:20px;margin:0}
 .hint{color:var(--dim);font-size:13px;line-height:1.5}
 .speaker-editor{border:1px solid var(--card2);border-radius:14px;padding:14px;margin:14px 0;min-width:0}
-.speaker-editor label{display:block;font-size:13px;margin-bottom:10px;color:var(--dim)}
-.speaker-editor input{display:block;width:100%;margin-top:5px;padding:11px;border:1px solid #444;
+.speaker-editor label,.preset-field{display:block;font-size:13px;margin-bottom:10px;color:var(--dim)}
+.speaker-editor input,.preset-field select{display:block;width:100%;margin-top:5px;padding:11px;border:1px solid #444;
 border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size:16px}
 .remove-speaker{color:#fca5a5}
-#settingsSave{background:var(--accD)}
-#settingsError{color:#fca5a5;font-size:14px}
+#settingsSave,#presetsSave{background:var(--accD)}
+#settingsError,#presetsError{color:#fca5a5;font-size:14px}
+.station-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.station-head .sec{margin-bottom:0}
 .action:disabled{opacity:.5;cursor:wait}
 </style></head><body>
 <header><h1>Bose Radio</h1><div class="header-actions"><div id="conn"><span class="dot"></span><span id="connTxt">…</span></div>
@@ -556,9 +582,23 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 <p class="hint">Ajoutez vos enceintes et leurs adresses réseau. L’identifiant Bose (deviceID) est disponible sur http://IP-enceinte:8090/info. Le nom sert dans cette application.</p>
 <div id="speakerEditors"></div>
 <button type="button" id="speakerAdd" class="action">+ Ajouter une enceinte</button>
-<p class="hint">Enregistrer met à jour la configuration locale. Retirer une enceinte de la liste n’arrête pas sa lecture. Les presets seront configurables dans une prochaine étape.</p>
+<p class="hint">Enregistrer met à jour la configuration locale. Retirer une enceinte de la liste n’arrête pas sa lecture.</p>
 <p id="settingsError" role="alert"></p>
 <div class="settings-actions"><button type="button" id="settingsCancel" class="action">Annuler</button><button type="submit" id="settingsSave" class="action">Enregistrer</button></div>
+</form></dialog>
+
+<dialog id="presetsSettings" aria-labelledby="presetsTitle">
+<form id="presetsForm">
+<div class="settings-head"><h2 id="presetsTitle">Presets</h2><button type="button" id="presetsClose" class="action" aria-label="Fermer">✕</button></div>
+<p class="hint">Associez les boutons 1 à 6 aux stations. La liste globale s’applique à toutes les enceintes ; chaque enceinte peut remplacer certains presets.</p>
+<fieldset id="presetsFields" class="speaker-editor">
+<label class="preset-field">Configurer pour<select id="presetsScope"></select></label>
+<div id="presetEditors"></div>
+<button type="button" id="presetsReset" class="action">Reprendre toute la liste globale</button>
+</fieldset>
+<p class="hint">« Sans affectation » désactive ce preset pour l’enceinte choisie. Enregistrer applique vos changements aux boutons physiques et à l’affichage des stations, sans lancer de lecture.</p>
+<p id="presetsError" role="alert"></p>
+<div class="settings-actions"><button type="button" id="presetsCancel" class="action">Annuler</button><button type="submit" id="presetsSave" class="action">Enregistrer</button></div>
 </form></dialog>
 
 <div id="hero"><div class="eq"><span></span><span></span><span></span></div>
@@ -578,7 +618,7 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
   <div id="spkList"></div>
 </div>
 
-<div class="sec">Stations</div>
+<div class="station-head"><div class="sec">Stations</div><button id="presetsOpen" class="action">Gérer les presets</button></div>
 <div id="grid"></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -734,6 +774,64 @@ $('settingsForm').onsubmit=async e=>{
   finally{settingsSaving=false;$('settingsSave').disabled=false;$('speakerAdd').disabled=false;
     Array.from($('speakerEditors').children).forEach(row=>row.disabled=false)}
 };
+let presetsSaving=false,presetDrafts={},presetChanges={},presetStations=[];
+function buildPresetEditors(){
+  const scope=$('presetsScope').value,mapping=presetDrafts[scope]||{};
+  $('presetEditors').replaceChildren();$('presetsReset').hidden=scope==='default';
+  for(let n=1;n<=6;n++){
+    const label=document.createElement('label');label.className='preset-field';label.textContent='Preset '+n;
+    const select=document.createElement('select');select.name=String(n);
+    if(scope!=='default'){
+      const inherited=presetDrafts.default?.[n];
+      const station=presetStations.find(s=>s.id===inherited);
+      select.add(new Option('Liste globale — '+(inherited?(station?.note||pretty(inherited)):'sans affectation'),'inherit'));
+    }
+    select.add(new Option('Sans affectation',''));
+    presetStations.forEach(s=>select.add(new Option(s.note?pretty(s.id)+' — '+s.note:pretty(s.id),'station:'+s.id)));
+    const value=mapping[n];
+    if(value&&!presetStations.some(s=>s.id===value))select.add(new Option('Station indisponible : '+value,'station:'+value));
+    select.value=value?'station:'+value:(scope!=='default'&&value===undefined?'inherit':'');
+    select.onchange=()=>{
+      const draft=presetDrafts[scope];
+      if(select.value==='inherit'||(scope==='default'&&!select.value))delete draft[n];
+      else draft[n]=select.value?select.value.slice(8):null;
+      presetChanges[scope]=draft;
+    };
+    label.appendChild(select);$('presetEditors').appendChild(label);
+  }
+}
+function closePresets(){if(!presetsSaving)$('presetsSettings').close()}
+$('presetsClose').onclick=closePresets;$('presetsCancel').onclick=closePresets;
+$('presetsSettings').oncancel=e=>{if(presetsSaving)e.preventDefault()};
+$('presetsScope').onchange=buildPresetEditors;
+$('presetsReset').onclick=()=>{
+  const scope=$('presetsScope').value;if(scope==='default')return;
+  presetDrafts[scope]={};presetChanges[scope]=presetDrafts[scope];buildPresetEditors();
+};
+$('presetsOpen').onclick=async()=>{
+  if(busy)return;$('presetsOpen').disabled=true;
+  try{
+    const config=await api('/api/presets');
+    presetDrafts=Object.assign(Object.create(null),config.presets);presetChanges=Object.create(null);presetStations=config.stations;
+    $('presetsScope').replaceChildren();$('presetsScope').add(new Option('Liste globale — toutes les enceintes','default'));
+    for(const name of Object.keys(config.speakers)){
+      $('presetsScope').add(new Option(name,name));presetDrafts[name]??={};
+    }
+    presetDrafts.default??={};
+    const selected=currentStatus?.speakers.find(s=>s.ip===selectedTarget)?.name;
+    $('presetsScope').value=selected&&Object.hasOwn(config.speakers,selected)?selected:'default';
+    buildPresetEditors();$('presetsError').textContent='';$('presetsSettings').showModal();
+  }catch(e){toast('Erreur : '+e.message)}finally{$('presetsOpen').disabled=false}
+};
+$('presetsForm').onsubmit=async e=>{
+  e.preventDefault();if(presetsSaving)return;
+  presetsSaving=true;$('presetsFields').disabled=true;$('presetsSave').disabled=true;$('presetsError').textContent='';
+  try{
+    await api('/api/presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({presets:presetChanges})});
+    $('presetsSettings').close();toast('Presets enregistrés');await refresh();
+  }catch(e){$('presetsError').textContent=e.message}
+  finally{presetsSaving=false;$('presetsFields').disabled=false;$('presetsSave').disabled=false}
+};
 refresh();setInterval(refresh,5000);
 </script></body></html>"""
 
@@ -751,7 +849,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(body)
 
     def do_POST(self):
-        if self.path != "/api/speakers":
+        if self.path not in ("/api/speakers", "/api/presets"):
             return self._json({"ok": False, "error": "Route inconnue."}, 404)
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             return self._json({"ok": False, "error": "JSON requis."}, 415)
@@ -764,8 +862,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if not 0 < length <= 65536: raise ValueError("Taille de requête invalide.")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict): raise ValueError("Objet JSON requis.")
-            result = configure_speakers(payload.get("speakers"))
-            return self._json({"ok": True, "speakers": result})
+            key = "presets" if self.path == "/api/presets" else "speakers"
+            configure = configure_presets if key == "presets" else configure_speakers
+            result = configure(payload.get(key))
+            return self._json({"ok": True, key: result})
         except (ValueError, UnicodeError) as e:
             return self._json({"ok": False, "error": str(e)}, 400)
         except OSError:
@@ -786,6 +886,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self._json(api_status(cfg))
         if path == "/api/speakers":
             return self._json({"speakers": load_json(SPEAKERS_PATH, {})})
+        if path == "/api/presets":
+            with _CONFIG_LOCK:
+                return self._json({"presets": load_json(PRESETS_PATH, {}),
+                                   "speakers": load_json(SPEAKERS_PATH, {}),
+                                   "stations": [{"id": k, "note": v.get("note", "") if isinstance(v, dict) else ""}
+                                                for k, v in load_json(STATIONS_PATH, {}).items()]})
         m = re.match(r"/api/play/(.+)$", path)
         if m:
             station = urllib.parse.unquote(m.group(1))

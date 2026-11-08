@@ -63,7 +63,16 @@ Renommer une enceinte conserve ses presets individuels et son éventuel rôle
 `master` en mettant aussi à jour les JSON concernés. Retirer une enceinte ne
 coupe pas sa lecture et conserve ses presets dans le fichier pour un éventuel
 réajout avec le même nom. **Annuler** ferme sans enregistrer.
-L'éditeur des presets globaux et par enceinte reste une prochaine étape.
+Le bouton **Gérer les presets**, à côté de **Stations**, ouvre l’éditeur des six
+presets. Choisir **Liste globale — toutes les enceintes** pour définir la liste
+commune, ou une enceinte pour personnaliser ses boutons. Chaque preset individuel
+peut reprendre la liste globale, choisir une station ou rester **Sans affectation**
+(même si le preset global est défini). **Reprendre toute la liste globale** efface
+les exceptions de l’enceinte choisie. La liste globale conserve les exceptions
+des autres enceintes. On peut modifier plusieurs listes avant **Enregistrer** ;
+**Annuler** abandonne toutes les modifications. L’enregistrement met à jour
+`config/presets.json`, l’ordre des stations et les prochains appuis sur les boutons
+physiques, sans redémarrage ni lancement de lecture.
 
 Les stations sont affichées dans l'ordre des presets physiques 1 à 6, avec leur
 numéro sur chaque bouton, à partir de `config/presets.json`. Les correspondances

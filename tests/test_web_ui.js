@@ -16,7 +16,7 @@ class Element{
   remove(){this.parent.children=this.parent.children.filter(c=>c!==this)}
   showModal(){this.open=true}
   close(){this.open=false}
-  replaceChildren(){this.children=[]}
+  replaceChildren(){this.children=[];this.options=[];this.value=''}
   querySelector(s){
     const named=s.match(/^\[name="(.+)"\]$/);
     if(named)return this.children.flatMap(c=>c.children).find(c=>c.name===named[1]);
@@ -32,7 +32,10 @@ const context=vm.createContext({document:{getElementById:get,createElement:()=>n
   Option:function(textContent,value){Object.assign(this,{textContent,value})},
   fetch:async (p,options)=>{requests.push(p);if(options)writes.push(options);
     return {ok:!fail,json:async()=>fail?{ok:false,error:'test failure'}:
-      p==='/api/speakers'?{ok:true,speakers:speakerConfig}:p==='/api/status'?status:{ok:true}}},
+      p==='/api/speakers'?{ok:true,speakers:speakerConfig}:
+      p==='/api/presets'?JSON.parse(JSON.stringify({presets:status.presets,stations:status.stations,
+        speakers:Object.fromEntries(status.speakers.map(s=>[s.name,{ip:s.ip}]))})):
+      p==='/api/status'?status:{ok:true}}},
   setTimeout:()=>0,clearTimeout(){},setInterval(){}});
 vm.runInContext(script.replace('refresh();setInterval(refresh,5000);',''),context);
 const stations=['four','five','one','two','three','six','extra'].map(id=>({id,note:id}));
@@ -98,6 +101,53 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('speakerEditors').children[0].disabled,false);
   get('settingsCancel').onclick();
   assert.equal(get('settings').open,false);
+  fail=false;
+  get('target').children[1].onclick();
+  await get('presetsOpen').onclick();
+  assert.equal(get('presetsSettings').open,true);
+  assert.equal(get('presetsScope').value,'Bath');
+  const preset=n=>get('presetEditors').children[n-1].children[0];
+  const choose=(n,value)=>{preset(n).value=value&&value!=='inherit'?'station:'+value:value;preset(n).onchange()};
+  const scope=value=>{get('presetsScope').value=value;get('presetsScope').onchange()};
+  assert.equal(get('presetEditors').children.length,6);
+  assert.equal(preset(1).value,'station:two');
+  assert.equal(preset(3).value,'inherit');
+  choose(1,''); // suppress a global preset
+  choose(2,'inherit'); // remove an individual override
+  scope('default');
+  choose(3,'extra');
+  choose(6,''); // clear a global slot
+  scope('Bath');
+  assert.equal(preset(1).value,'');
+  assert.equal(preset(2).value,'inherit');
+  assert.ok(preset(3).options[0].textContent.includes('extra'));
+  fail=true;
+  await get('presetsForm').onsubmit({preventDefault(){}});
+  assert.equal(get('presetsSettings').open,true);
+  assert.equal(get('presetsError').textContent,'test failure');
+  assert.equal(get('presetsFields').disabled,false);
+  assert.equal(get('presetsSave').disabled,false);
+  fail=false;
+  await get('presetsForm').onsubmit({preventDefault(){}});
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Bath:{1:null},
+    default:{1:'one',2:'two',3:'extra',4:'four',5:'five'}}});
+  assert.equal(requests.at(-2),'/api/presets');
+  assert.equal(get('presetsSettings').open,false);
+  await get('presetsOpen').onclick();
+  get('presetsReset').onclick();
+  assert.ok(get('presetEditors').children.every(label=>label.children[0].value==='inherit'));
+  await get('presetsForm').onsubmit({preventDefault(){}});
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Bath:{}}});
+  await get('presetsOpen').onclick();
+  choose(1,'extra');
+  const count=writes.length;
+  get('presetsCancel').onclick();
+  assert.equal(writes.length,count);
+  await get('presetsOpen').onclick();
+  assert.equal(preset(1).value,'station:two');
+  get('presetsClose').onclick();
+  status.presets.Bath[1]=null;render();
+  assert.equal(get('grid').children.find(c=>c.id==='st-two').querySelector('.preset').textContent,'Sans preset');
   status.speakers=[{name:'New <name>',ip:'192.0.2.3',volume:12,playStatus:'STANDBY'}];render();
   assert.equal(get('target').children.length,1);
   assert.equal(get('target').children[0].textContent,'New <name>');
@@ -106,5 +156,11 @@ function render(){vm.runInContext('render(status)',context)}
   status.speakers=[];render();
   assert.equal(get('target').children.length,0);
   assert.equal(get('spkList').children.length,0);
-  console.log('Web UI: playback, presets, speaker settings, save errors and live list refresh passed');
+  get('targetAll').onclick();
+  await get('presetsOpen').onclick();
+  assert.equal(get('presetsScope').value,'default');
+  assert.equal(get('presetsReset').hidden,true);
+  assert.equal(get('presetsScope').options.length,1);
+  assert.ok(!script.includes('Les presets seront configurables dans une prochaine étape'));
+  console.log('Web UI: playback, global/individual preset editing, inheritance, cancellation, save errors and speaker settings passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
