@@ -125,6 +125,33 @@ par le listener des boutons. Éviter les commandes répétées rapidement.
 
 ## Boutons et diagnostic
 
+### Recherche d’enceintes depuis l’interface
+
+Dans **⚙ → Enceintes → Ajouter**, **Rechercher sur le réseau** effectue une recherche
+SSDP à la demande, sans dépendance supplémentaire. Le serveur envoie une requête
+multicast UDP vers `239.255.255.250:1900`, attend les réponses pendant quatre secondes,
+puis lit `/info` sur le port 8090 des adresses ayant répondu. La recherche traite
+au maximum 32 adresses, avec huit lectures simultanées et un délai de socket de
+1,5 seconde par lecture. Aucun balayage de sous-réseau ni recherche permanente.
+La liste des résultats est dédupliquée par `deviceID`. Une sélection préremplit le
+formulaire ; seul **Enregistrer** modifie la configuration et permet au listener de
+reprendre l’enceinte. Les nouvelles enceintes commencent sans preset.
+
+La recherche part de la machine qui héberge Python, pas du navigateur. Elle dépend
+du passage du multicast sur le LAN, du pare-feu et des interfaces réseau du serveur.
+Le Compose utilise déjà le réseau hôte ; en LXC, vérifier également le bridge de
+l’hôte et l’absence d’isolation Wi-Fi ou de VLAN bloquant le multicast.
+Si aucun résultat n’apparaît, saisir l’IPv4 de l’enceinte et utiliser **Récupérer les
+informations depuis cette IP**, ou compléter le formulaire manuellement.
+Les lectures d’identité utilisent directement une IPv4 locale, sans proxy HTTP ni
+redirection. Elles ne lancent ni n’arrêtent la lecture.
+Une recherche simultanée est refusée avec une invitation à réessayer.
+
+Cette fonction est couverte par des tests simulés ; son fonctionnement réseau réel
+sur Mac et Linux/LXC reste à valider lors d’un essai matériel demandé explicitement.
+
+### Presets et lecture
+
 Les stations jouées sont définies dans `config/presets.json`, avec une liste `default` pour l’affichage **Toutes** et une liste
 indépendante par nom d’enceinte pour ses boutons physiques. Le bouton **Presets** de
 l’interface permet de modifier chaque liste sans redémarrage : toucher un bouton,

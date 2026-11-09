@@ -40,6 +40,8 @@ import ipaddress
 import tempfile
 import hashlib
 import uuid
+import http.client
+from concurrent.futures import ThreadPoolExecutor
 
 # Windows consoles default to cp1252 which can't print ▶/■ — force UTF-8.
 for _s in (sys.stdout, sys.stderr):
@@ -99,13 +101,23 @@ def save_json(path, obj):
     finally:
         if os.path.exists(tmp): os.unlink(tmp)
 
-_CONFIG_LOCK = threading.Lock()
+_CONFIG_LOCK = threading.RLock()
 
-def configure_speakers(rows):
+def speaker_snapshot():
+    """Caller holds the configuration lock."""
+    speakers_config = load_json(SPEAKERS_PATH, {})
+    revision = hashlib.sha256(json.dumps([
+        speakers_config, load_json(PRESETS_PATH, {}), load_json(CONFIG_PATH, {})
+    ], sort_keys=True).encode()).hexdigest()
+    return {"speakers": speakers_config, "revision": revision}
+
+def configure_speakers(rows, revision=None):
     """Validate the complete list before writing; retain metadata and renamed presets."""
     if not isinstance(rows, list) or len(rows) > 100:
         raise ValueError("Liste d'enceintes invalide (100 maximum).")
     with _CONFIG_LOCK:
+        if revision is not None and revision != speaker_snapshot()["revision"]:
+            raise ValueError("Configuration modifiée : fermez puis rouvrez les réglages avant de confirmer à nouveau.")
         old = load_json(SPEAKERS_PATH, {})
         result, renames, originals, ips, ids = {}, {}, set(), set(), set()
         for row in rows:
@@ -274,6 +286,71 @@ def resolve_proxy_host(cfg, a_speaker_ip=None):
         s.close()
 
 # ------------------------------------------------------- speaker discovery ---
+_DISCOVERY_LOCK = threading.Lock()
+
+def speaker_info(ip):
+    """Read identity only, directly from a LAN IPv4, without redirects or proxies."""
+    try:
+        if not isinstance(ip, str): raise ValueError()
+        address = ipaddress.IPv4Address(ip)
+        if (not address.is_private or address.is_loopback or address.is_multicast
+                or address.is_unspecified or address.is_reserved):
+            raise ValueError()
+    except ValueError:
+        raise ValueError("Adresse IPv4 locale invalide.") from None
+    connection = http.client.HTTPConnection(str(address), 8090, timeout=1.5)
+    try:
+        connection.request("GET", "/info")
+        response = connection.getresponse()
+        if response.status != 200:
+            raise ValueError("L’enceinte ne répond pas à la demande d’informations.")
+        body = response.read(65537)
+        if len(body) > 65536: raise ValueError("Réponse de l’enceinte trop volumineuse.")
+        root = ET.fromstring(body)
+        device_id = root.get("deviceID", "").upper()
+        name = (root.findtext("name") or "").strip()
+        model = (root.findtext("type") or "").strip()
+        if root.tag != "info" or not re.fullmatch(r"[0-9A-F]{12}", device_id) or not name:
+            raise ValueError("Cet appareil ne fournit pas une identité SoundTouch valide.")
+        return {"name": name, "ip": str(address), "deviceID": device_id, "model": model}
+    except (OSError, http.client.HTTPException, ET.ParseError):
+        raise ValueError("Impossible de lire l’enceinte. Vérifiez son IP et son accès au réseau.") from None
+    finally:
+        connection.close()
+
+def scan_speakers(timeout=4):
+    """Bounded, on-demand SSDP search. Never writes configuration or controls playback."""
+    if not _DISCOVERY_LOCK.acquire(blocking=False):
+        raise ValueError("Une recherche est déjà en cours. Réessayez dans quelques secondes.")
+    try:
+        candidates = set()
+        message = ("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\n"
+                   'MAN: "ssdp:discover"\r\nMX: 2\r\nST: ssdp:all\r\n\r\n').encode()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+            sock.bind(("", 0))
+            sock.sendto(message, ("239.255.255.250", 1900))
+            deadline = time.monotonic() + timeout
+            while len(candidates) < 32:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0: break
+                sock.settimeout(remaining)
+                try: packet, sender = sock.recvfrom(8192)
+                except socket.timeout: break
+                # Only contact the sender, never a URL advertised by an arbitrary device.
+                if packet.upper().startswith(b"HTTP/1.1 200"):
+                    candidates.add(sender[0])
+        def identify(ip):
+            try: return speaker_info(ip)
+            except ValueError: return None
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            found = [speaker for speaker in pool.map(identify, sorted(candidates)) if speaker]
+        unique = {}
+        for speaker in found: unique.setdefault(speaker["deviceID"], speaker)
+        return sorted(unique.values(), key=lambda speaker: speaker["name"].casefold())
+    finally:
+        _DISCOVERY_LOCK.release()
+
 def discover_speakers(timeout=6):
     """Browse mDNS for _soundtouch._tcp, resolve each to an IP, read /info."""
     found = {}
@@ -672,6 +749,7 @@ dialog,dialog[open].closing{transform:none}
 .station-row strong{flex:1;min-width:0;overflow-wrap:anywhere}
 .station-row .action{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:10px}
 .station-row svg{width:24px;height:24px}
+.discovery-choice{display:block;width:100%;margin:8px 0;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #stationsError{color:#fca5a5}
 #stationSave,#speakerSave{background:var(--accD)}
 .search-field{display:block;width:100%;padding:12px;margin:14px 0;border:1px solid #444;
@@ -691,6 +769,10 @@ h2{font-size:20px;margin:0}
 dialog:focus,dialog h2[tabindex="-1"]:focus{outline:none}
 .hint{color:var(--dim);font-size:13px;line-height:1.5}
 .speaker-editor{border:1px solid var(--card2);border-radius:14px;padding:14px;margin:14px 0;min-width:0}
+#speakerDiscovery{margin-top:16px}
+#speakerScan{display:inline-flex;align-items:center;gap:10px}
+#speakerScan svg{width:24px;height:24px;flex:none}
+#speakerLookup{margin-bottom:16px}
 .speaker-editor label,.preset-field{display:block;font-size:13px;margin-bottom:10px;color:var(--dim)}
 .speaker-editor input,.preset-field select{display:block;width:100%;margin-top:5px;padding:11px;border:1px solid #444;
 border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size:16px}
@@ -747,10 +829,17 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 
 <dialog id="speakerEdit" aria-labelledby="speakerEditTitle">
 <h2 id="speakerEditTitle" tabindex="-1">Modifier une enceinte</h2>
+<div id="speakerDiscovery">
+<button type="button" id="speakerScan" class="action"><svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path d="M496,272V240H272V192h56a24.027,24.027,0,0,0,24-24V40a24.027,24.027,0,0,0-24-24H184a24.027,24.027,0,0,0-24,24V168a24.027,24.027,0,0,0,24,24h56v48H16v32H96v48H41.391a24.028,24.028,0,0,0-24,24V472a24.028,24.028,0,0,0,24,24H184a24.027,24.027,0,0,0,24-24V344a24.027,24.027,0,0,0-24-24H128V272H384v48H328a24.027,24.027,0,0,0-24,24V472a24.027,24.027,0,0,0,24,24H472a24.027,24.027,0,0,0,24-24V344a24.027,24.027,0,0,0-24-24H416V272ZM192,48H320V160H192ZM176,464H49.391V352H176Zm288,0H336V352H464Z"/></svg><span>Rechercher sur le réseau</span></button>
+<p class="hint">Recherche depuis le serveur de l’application. Choisissez une enceinte pour préremplir le formulaire, ou saisissez ses informations.</p>
+</div>
+<p id="speakerScanStatus" role="status" aria-live="polite"></p>
+<div id="speakerScanResults"></div>
 <form id="speakerForm">
 <fieldset id="speakerFields" class="speaker-editor">
 <label>Nom<input id="speakerName" required maxlength="80" autocomplete="off"></label>
 <label>Adresse IPv4<input id="speakerIp" required maxlength="15" autocomplete="off"></label>
+<button type="button" id="speakerLookup" class="action">Récupérer les informations depuis cette IP</button>
 <label>Identifiant Bose (deviceID)<input id="speakerDeviceID" required maxlength="12" pattern="[0-9a-fA-F]{12}" autocomplete="off"></label>
 <label>Modèle (facultatif)<input id="speakerModel" maxlength="100" autocomplete="off"></label>
 <p class="hint">L’identifiant Bose (deviceID) est disponible sur http://IP-enceinte:8090/info. Le nom sert dans cette application. Enregistrer applique immédiatement les changements.</p>
@@ -924,15 +1013,62 @@ $('vup').onclick=()=>setGroupVol(+$('vol').value+5);
 $('stop').onclick=async()=>{if(busy)return;busy=true;touch();disableTargets(true);
   try{await api('/api/stop'+targetQuery());toast('Arrêt : '+targetLabel())}
   catch(e){toast('Erreur : '+e.message)}finally{busy=false;disableTargets(false);refresh()}};
-let settingsSaving=false,speakerDrafts=[],speakerEditing=null,speakerDeleting=null;
+let settingsSaving=false,speakerDrafts=[],speakerEditing=null,speakerDeleting=null,speakerRevision=null;
+let speakerRequest=0,speakerSearching=false;
 const speakerInputs={name:'speakerName',ip:'speakerIp',deviceID:'speakerDeviceID',model:'speakerModel'};
+function endSpeakerSearch(){
+  speakerRequest++;speakerSearching=false;
+  $('speakerScan').disabled=false;$('speakerLookup').disabled=false;$('speakerSave').disabled=false;
+}
+function fillSpeaker(speaker){
+  for(const [key,id] of Object.entries(speakerInputs))$(id).value=speaker[key]||'';
+  $('speakerName').focus();
+}
 function editSpeaker(speaker=null){
   if(settingsSaving)return;
+  endSpeakerSearch();$('speakerDiscovery').hidden=!!speaker;
+  $('speakerScanStatus').textContent='';$('speakerScanResults').replaceChildren();
   speakerEditing=speaker;
   for(const [key,id] of Object.entries(speakerInputs))$(id).value=speaker?.[key]||'';
   $('speakerEditTitle').textContent=speaker?'Modifier une enceinte':'Ajouter une enceinte';
   $('speakerEditError').textContent='';$('speakerEdit').showModal();$('speakerName').focus();
 }
+async function findSpeakers(fromIp=false){
+  if(settingsSaving||speakerSearching)return;
+  const request=++speakerRequest,ip=$('speakerIp').value.trim();
+  speakerSearching=true;$('speakerScan').disabled=true;$('speakerLookup').disabled=true;$('speakerSave').disabled=true;
+  $('speakerEditError').textContent='';$('speakerScanResults').replaceChildren();
+  $('speakerScanStatus').textContent=fromIp?'Lecture des informations…':'Recherche en cours…';
+  try{
+    const result=await api(fromIp?'/api/speakers/identify':'/api/speakers/discover',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fromIp?{ip}:{})});
+    if(request!==speakerRequest)return;
+    if(fromIp&&$('speakerIp').value.trim()!==ip){
+      $('speakerScanStatus').textContent='Adresse modifiée pendant la recherche. Relancez la récupération des informations.';return;
+    }
+    const speakers=fromIp?[result.speaker]:result.speakers;
+    $('speakerScanStatus').textContent=speakers.length?'Choisissez une enceinte.':
+      'Aucune enceinte trouvée. Vérifiez le réseau ou renseignez une IP pour récupérer ses informations.';
+    for(const speaker of speakers){
+      const known=speakerDrafts.find(s=>(s.deviceID||'').toUpperCase()===speaker.deviceID.toUpperCase()&&s!==speakerEditing);
+      const button=document.createElement('button');button.type='button';button.className='action discovery-choice';
+      button.textContent=speaker.name+' — '+(speaker.model||'SoundTouch')+' — '+speaker.ip+(known?' — Déjà configurée ('+known.name+')':'');
+      button.disabled=!!known;
+      button.onclick=()=>{fillSpeaker(speaker);$('speakerScanResults').replaceChildren();
+        $('speakerScanStatus').textContent='Informations récupérées. Vérifiez le nom puis enregistrez.'};
+      $('speakerScanResults').appendChild(button);
+      if(fromIp&&!known){
+        // Preserve a local name entered before the lookup, especially while editing.
+        const name=$('speakerName').value;
+        fillSpeaker({...speaker,name:name||speaker.name});$('speakerScanResults').replaceChildren();
+        $('speakerScanStatus').textContent='Informations récupérées. Vérifiez le nom puis enregistrez.';
+      }
+    }
+  }catch(e){if(request===speakerRequest){$('speakerScanStatus').textContent='';$('speakerEditError').textContent=e.message}}
+  finally{if(request===speakerRequest)endSpeakerSearch()}
+}
+$('speakerScan').onclick=()=>findSpeakers();
+$('speakerLookup').onclick=()=>findSpeakers(true);
 function renderSpeakerList(){
   $('speakerEditors').replaceChildren();
   if(!speakerDrafts.length){
@@ -964,13 +1100,13 @@ $('settingsClose').onclick=closeSettings;
 $('settings').oncancel=e=>{e.preventDefault();return closeSettings()};
 $('speakerAdd').onclick=()=>editSpeaker();
 $('speakerSearch').oninput=renderSpeakerList;
-$('speakerCancel').onclick=()=>{if(!settingsSaving)return closeDialog($('speakerEdit'))};
-$('speakerEdit').oncancel=e=>{e.preventDefault();if(!settingsSaving)return closeDialog($('speakerEdit'))};
+$('speakerCancel').onclick=()=>{if(!settingsSaving){endSpeakerSearch();return closeDialog($('speakerEdit'))}};
+$('speakerEdit').oncancel=e=>{e.preventDefault();return $('speakerCancel').onclick()};
 $('speakerDeleteCancel').onclick=()=>{if(!settingsSaving)return closeDialog($('speakerDelete'))};
 $('speakerDelete').oncancel=e=>{e.preventDefault();if(!settingsSaving)return closeDialog($('speakerDelete'))};
 $('speakerDeleteConfirm').onclick=()=>writeSpeakers(speakerDrafts.filter(s=>s!==speakerDeleting),true);
 $('speakerForm').onsubmit=async e=>{
-  e.preventDefault();if(settingsSaving)return;
+  e.preventDefault();if(settingsSaving||speakerSearching)return;
   const values=Object.fromEntries(Object.entries(speakerInputs).map(([key,id])=>[key,$(id).value.trim()]));
   if(speakerDrafts.some(s=>s!==speakerEditing&&s.name===values.name)){
     $('speakerEditError').textContent='Une enceinte porte déjà ce nom.';return;
@@ -989,6 +1125,7 @@ $('speakersOpen').onclick=async()=>{
   $('speakersOpen').disabled=true;
   try{
     const config=await api('/api/speakers');
+    speakerRevision=config.revision;
     setSpeakerConfig(config.speakers);
     $('speakerSearch').value='';renderSpeakerList();
     $('settingsError').textContent='';$('settings').showModal();
@@ -1000,7 +1137,8 @@ async function writeSpeakers(speakers,deleting=false){
   settingsSaving=true;error.textContent='';$('speakerFields').disabled=true;
   $('speakerAdd').disabled=true;$('speakerDeleteConfirm').disabled=true;renderSpeakerList();
   try{
-    const result=await api('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speakers})});
+    const result=await api('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speakers,revision:speakerRevision})});
+    speakerRevision=result.revision;
     setSpeakerConfig(result.speakers);
     await closeDialog($(deleting?'speakerDelete':'speakerEdit'));
     toast(deleting?'Enceinte retirée':'Enceinte enregistrée');await refresh();
@@ -1172,7 +1310,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(body)
 
     def do_POST(self):
-        if self.path not in ("/api/speakers", "/api/presets", "/api/stations"):
+        if self.path not in ("/api/speakers", "/api/presets", "/api/stations",
+                             "/api/speakers/discover", "/api/speakers/identify"):
             return self._json({"ok": False, "error": "Route inconnue."}, 404)
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             return self._json({"ok": False, "error": "JSON requis."}, 415)
@@ -1185,8 +1324,19 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if not 0 < length <= 65536: raise ValueError("Taille de requête invalide.")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict): raise ValueError("Objet JSON requis.")
+            if self.path == "/api/speakers/discover":
+                try: found = scan_speakers()
+                except OSError:
+                    raise ValueError("Recherche réseau impossible. Vérifiez le réseau du serveur ou renseignez une IP.") from None
+                return self._json({"ok": True, "speakers": found})
+            if self.path == "/api/speakers/identify":
+                return self._json({"ok": True, "speaker": speaker_info(payload.get("ip"))})
             key = self.path.rsplit("/", 1)[1]
-            configure = {"presets": configure_presets, "speakers": configure_speakers, "stations": configure_station}[key]
+            if key == "speakers":
+                with _CONFIG_LOCK:
+                    configure_speakers(payload.get(key), payload.get("revision"))
+                    return self._json({"ok": True, **speaker_snapshot()})
+            configure = {"presets": configure_presets, "stations": configure_station}[key]
             result = configure(payload if key == "stations" else payload.get(key))
             return self._json({"ok": True, key: result})
         except (ValueError, UnicodeError) as e:
@@ -1208,7 +1358,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if path == "/api/status":
             return self._json(api_status(cfg))
         if path == "/api/speakers":
-            return self._json({"speakers": load_json(SPEAKERS_PATH, {})})
+            with _CONFIG_LOCK:
+                return self._json(speaker_snapshot())
         if path == "/api/stations":
             with _CONFIG_LOCK:
                 return self._json(station_snapshot())

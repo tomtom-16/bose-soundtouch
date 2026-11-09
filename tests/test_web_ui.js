@@ -32,16 +32,21 @@ const requests=[];
 const writes=[];
 let speakerConfig={Living:{ip:'192.0.2.1',deviceID:'AABBCCDDEEFF'}};
 let fail=false;
+let discoverySpeakers=[],waitDiscovery=null;
+const discovered={name:'Bureau <Bose>',ip:'192.0.2.8',deviceID:'123456ABCDEF',model:'SoundTouch 10'};
 const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},
   Option:function(textContent,value){Object.assign(this,{textContent,value})},
   fetch:async (p,options)=>{requests.push(p);if(options)writes.push(options);
+    if((p==='/api/speakers/discover'||p==='/api/speakers/identify')&&waitDiscovery)await waitDiscovery;
     if(p==='/api/speakers'&&options&&!fail){
       speakerConfig=Object.fromEntries(JSON.parse(options.body).speakers.map(s=>[s.name,
         {ip:s.ip,deviceID:s.deviceID.toUpperCase(),model:s.model}]));
     }
     return {ok:!fail,json:async()=>fail?{ok:false,error:'test failure'}:
       p==='/api/stations'?{stations:{one:{note:'One',url:'https://example.com/live'}},revision:'revision-1',usages:{one:{direct:[{scope:'default',numbers:['1']}],effective:[{scope:'Living',numbers:['1']}]}}}:
-      p==='/api/speakers'?{ok:true,speakers:speakerConfig}:
+      p==='/api/speakers/discover'?{ok:true,speakers:discoverySpeakers}:
+      p==='/api/speakers/identify'?{ok:true,speaker:discovered}:
+      p==='/api/speakers'?{ok:true,speakers:speakerConfig,revision:'speaker-revision'}:
       p==='/api/presets'?JSON.parse(JSON.stringify({presets:status.presets,stations:status.stations,
         speakers:Object.fromEntries(status.speakers.map(s=>[s.name,{ip:s.ip}]))})):
       p==='/api/status'?status:{ok:true}}},
@@ -343,5 +348,54 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(dialog.open,true);
   finishAnimation();await closing;
   assert.equal(dialog.open,false);
+  dialog.getAnimations=()=>[];
+  // Discovery only fills the draft. Existing devices are recognized by ID.
+  discoverySpeakers=[discovered,{...discovered,name:'Autre nom',deviceID:'AABBCCDDEEFF'}];
+  speakerConfig={Salon:{ip:'192.0.2.1',deviceID:'aabbccddeeff'}};
+  await get('speakersOpen').onclick();get('speakerAdd').onclick();
+  const savesBeforeScan=requests.filter(p=>p==='/api/speakers').length;
+  await get('speakerScan').onclick();
+  assert.equal(get('speakerScanResults').children.length,2);
+  assert.equal(get('speakerScanResults').children[1].disabled,true);
+  assert.ok(get('speakerScanResults').children[1].textContent.includes('Déjà configurée (Salon)'));
+  get('speakerScanResults').children[0].onclick();
+  assert.equal(get('speakerName').value,'Bureau <Bose>');
+  assert.equal(get('speakerDeviceID').value,'123456ABCDEF');
+  assert.equal(requests.filter(p=>p==='/api/speakers').length,savesBeforeScan);
+  await get('speakerForm').onsubmit({preventDefault(){}});
+  assert.equal(JSON.parse(writes.at(-1).body).revision,'speaker-revision');
+  assert.equal(get('speakerEdit').open,false);
+  get('speakerAdd').onclick();discoverySpeakers=[];
+  await get('speakerScan').onclick();
+  assert.ok(get('speakerScanStatus').textContent.includes('Aucune enceinte'));
+  fail=true;await get('speakerScan').onclick();
+  assert.equal(get('speakerEditError').textContent,'test failure');
+  assert.equal(get('speakerSave').disabled,false);fail=false;
+  // IP lookup retains a name entered locally and writes nothing.
+  speakerConfig={};await get('speakerCancel').onclick();
+  await get('settingsClose').onclick();await get('speakersOpen').onclick();get('speakerAdd').onclick();
+  get('speakerName').value='Mon bureau';get('speakerIp').value='192.0.2.8';
+  await get('speakerLookup').onclick();
+  assert.equal(get('speakerName').value,'Mon bureau');
+  assert.equal(get('speakerModel').value,'SoundTouch 10');
+  // A cancelled scan must not populate a later editor, and may not submit while pending.
+  let finishDiscovery;
+  waitDiscovery=new Promise(resolve=>{finishDiscovery=resolve});discoverySpeakers=[discovered];
+  const scanning=get('speakerScan').onclick();
+  const beforePendingSubmit=writes.length;
+  await get('speakerForm').onsubmit({preventDefault(){}});
+  assert.equal(writes.length,beforePendingSubmit);
+  await get('speakerCancel').onclick();get('speakerAdd').onclick();
+  finishDiscovery();await scanning;waitDiscovery=null;
+  assert.equal(get('speakerName').value,'');
+  assert.equal(get('speakerScanResults').children.length,0);
+  assert.equal(get('speakerSave').disabled,false);
+  waitDiscovery=new Promise(resolve=>{finishDiscovery=resolve});
+  get('speakerIp').value='192.0.2.8';
+  const lookup=get('speakerLookup').onclick();get('speakerIp').value='192.0.2.9';
+  finishDiscovery();await lookup;waitDiscovery=null;
+  assert.equal(get('speakerIp').value,'192.0.2.9');
+  assert.equal(get('speakerDeviceID').value,'');
+  assert.ok(get('speakerScanStatus').textContent.includes('Adresse modifiée'));
   console.log('Web UI: playback, station catalogue CRUD, deletion confirmation, independent global/speaker presets and speaker settings passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

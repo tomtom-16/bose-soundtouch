@@ -65,9 +65,20 @@ désactivés si le système demande de réduire les animations.
 une recherche insensible aux majuscules et aux accents. Le bouton d’ajout vert
 avec un plus entouré blanc se trouve en haut, à droite de la recherche. Chaque
 ligne affiche le nom et les icônes de modification et de retrait. L’ajout et la
-modification ouvrent une fenêtre dédiée ; **Enregistrer** applique immédiatement
+modification ouvrent une fenêtre dédiée. À l’ajout, **Rechercher sur le réseau**
+lance une découverte SSDP ponctuelle depuis le serveur de l’application : choisir
+une enceinte préremplit son nom, son IPv4, son `deviceID` et son modèle. Les appareils
+déjà configurés sont signalés par leur `deviceID` et ne peuvent pas être ajoutés
+une seconde fois, même si leur nom ou leur IP a changé. Leur IP peut être corrigée
+dans la fenêtre de modification existante.
+La saisie manuelle reste disponible. **Récupérer les informations depuis cette IP**
+lit l’identité d’une enceinte sur le port 8090, en conservant le nom local déjà saisi.
+La recherche et cette lecture n’écrivent aucun fichier et ne changent pas la lecture.
+**Enregistrer** applique immédiatement
 le changement, puis revient à la liste. **Annuler** revient sans modifier cette
 enceinte. Le retrait demande une confirmation, puis s’applique immédiatement.
+Si les enceintes, leurs presets ou les réglages changent depuis l’ouverture de la
+liste, l’enregistrement est refusé : fermer puis rouvrir les réglages et recommencer.
 Il n’y a plus d’enregistrement global. Les champs sont le nom local,
 l'adresse IPv4, le `deviceID` Bose (12 caractères hexadécimaux) et le modèle
 facultatif. Le `deviceID` se trouve dans `http://<IP-enceinte>:8090/info`.
@@ -213,7 +224,9 @@ Les variables déjà présentes dans l'environnement ont priorité sur le fichie
 Les chemins de dossiers relatifs sont résolus depuis la racine du projet.
 
 `python3 bose_radio.py discover` utilise `dns-sd` sur macOS et écrit dans
-`config/speakers.json`. Pour une configuration manuelle, récupérer le `deviceID`
+`config/speakers.json`. Cette ancienne commande remplace la liste lorsqu’elle trouve
+des appareils et ne récupère pas le `deviceID` : préférer l’assistant web, compatible
+Mac/Linux et sans écriture avant validation. Pour une configuration manuelle, récupérer le `deviceID`
 avec `http://<IP-enceinte>:8090/info`. Les définitions de services dans `examples/`
 supposent que le dossier complet est installé au chemin indiqué ; adapter les chemins.
 

@@ -61,6 +61,17 @@ class SpeakerConfigurationTests(unittest.TestCase):
         self.assertEqual(radio.load_json(radio.PRESETS_PATH, {})['Kitchen'],
                          {})
 
+    def test_stale_revision_cannot_overwrite_concurrent_changes(self):
+        for path in (radio.SPEAKERS_PATH, radio.PRESETS_PATH, radio.CONFIG_PATH):
+            with self.subTest(path=path):
+                revision = radio.speaker_snapshot()['revision']
+                changed = radio.load_json(path, {})
+                changed['concurrent'] = {}
+                radio.save_json(path, changed)
+                with self.assertRaisesRegex(ValueError, 'Configuration modifiée'):
+                    radio.configure_speakers([self.row], revision)
+                self.assertEqual(radio.load_json(path, {}), changed)
+
     def test_atomic_write_failure_keeps_original_file(self):
         with patch.object(radio.os, 'replace', side_effect=OSError('read only')):
             with self.assertRaises(OSError):
@@ -97,10 +108,16 @@ class SpeakerConfigurationTests(unittest.TestCase):
             result = response.status, json.loads(response.read())
             conn.close()
             return result
-        self.assertEqual(request('GET')[1]['speakers'], self.original)
-        body = json.dumps({'speakers': [self.row]})
+        snapshot = request('GET')[1]
+        self.assertEqual(snapshot['speakers'], self.original)
+        body = json.dumps({'speakers': [self.row], 'revision': snapshot['revision']})
         headers = {'Content-Type': 'application/json'}
-        self.assertEqual(request('POST', body, headers)[0], 200)
+        code, saved = request('POST', body, headers)
+        self.assertEqual(code, 200)
+        self.assertNotEqual(saved['revision'], snapshot['revision'])
+        code, rejected = request('POST', body, headers)
+        self.assertEqual(code, 400)
+        self.assertIn('Configuration modifiée', rejected['error'])
         self.assertEqual(request('POST', '{broken', headers)[0], 400)
         self.assertEqual(request('POST', body)[0], 415)
         self.assertEqual(request('POST', body, {**headers, 'Origin': 'http://example.com'})[0], 403)

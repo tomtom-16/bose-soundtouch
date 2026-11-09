@@ -1,4 +1,4 @@
-# État du projet — 8 novembre 2026
+# État du projet — 9 novembre 2026
 
 Cette synthèse repose sur les deux historiques fournis et les fichiers copiés du
 serveur. Elle ne constitue pas un nouveau test des enceintes depuis le Mac.
@@ -35,6 +35,9 @@ une résolution TuneIn à la demande ; ne pas enregistrer d'URL finale à jeton 
 
 ## Points ouverts
 
+- Valider sur Mac puis Linux/LXC la découverte SSDP et la récupération d’identité
+  par IP de l’assistant d’ajout d’enceinte. Les tests de développement simulent le
+  réseau ; aucun appareil réel n’a été contacté pour cette évolution.
 - Tester les six boutons sur la seconde enceinte après redémarrage électrique.
 - Vérifier l'indépendance des deux enceintes et la reprise après redémarrage serveur.
 - Fun Radio diffuse encore une publicité au lancement malgré son URL directe.
@@ -57,3 +60,13 @@ Les exclusions Git ont été vérifiées pour les données locales et les histor
 Le plugin Docker Compose n'étant pas installé sur ce Mac, `docker compose config`
 et la construction/le démarrage des conteneurs restent à vérifier sur le serveur.
 Aucun test matériel ni accès au serveur n'a été effectué pendant cette préparation.
+
+## Assistant d’ajout d’enceinte
+
+L’interface propose une découverte SSDP ponctuelle, la sélection d’un résultat et
+la récupération des informations par IP. Ces opérations préremplissent le
+formulaire sans écrire de configuration. Les appareils connus sont reconnus par
+`deviceID` ; l’enregistrement conserve les presets et détecte les modifications
+concurrentes depuis l’ouverture de la liste. Les tests couvrent les réponses
+invalides, les doublons, les erreurs réseau, l’annulation et les routes HTTP avec
+des simulations, sans validation matérielle.
