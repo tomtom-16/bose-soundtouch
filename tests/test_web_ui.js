@@ -5,7 +5,7 @@ const {execFileSync}=require('node:child_process');
 const script=execFileSync('python3',['-c','import bose_radio; print(bose_radio.CONTROL_PAGE.split("<script>")[1].split("</script>")[0])'],{encoding:'utf8'});
 const elements=new Map();
 class Element{
-  constructor(){this.children=[];this.options=[];this.style={};this.parts={};this.value='';this.textContent='';this.classList={add(){},remove(){},toggle(){},contains(){return false}};}
+  constructor(){this.children=[];this.options=[];this.style={setProperty(name,value){this[name]=value}};this.parts={};this.value='';this.textContent='';this.classList={add(){},remove(){},toggle(){},contains(){return false}};}
   setAttribute(name,value){(this.attributes??={})[name]=value}
   set id(id){this._id=id;elements.set(id,this)}
   get id(){return this._id}
@@ -193,6 +193,25 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('target').children[0].textContent,'New <name>');
   assert.equal(get('spkList').children.length,1);
   assert.equal(get('spkList').children[0].querySelector('.nm').textContent,'New <name>');
+  // Volume fill follows polling, +/- buttons and direct slider input.
+  assert.equal(get('vol').style['--level'],(12/70*100)+'%');
+  get('vup').onclick();
+  assert.equal(get('vol').value,17);
+  assert.equal(get('vol').style['--level'],(17/70*100)+'%');
+  get('vdn').onclick();
+  assert.equal(get('vol').value,12);
+  get('vol').value=35;get('vol').oninput();
+  assert.equal(get('vol').style['--level'],'50%');
+  get('vol').value=70;get('vup').onclick();
+  assert.equal(get('vol').value,70);
+  assert.equal(get('vol').style['--level'],'100%');
+  get('vol').value=0;get('vdn').onclick();
+  assert.equal(get('vol').value,0);
+  assert.equal(get('vol').style['--level'],'0%');
+  const speakerSlider=get('spkList').children[0].querySelector('input');
+  assert.equal(speakerSlider.attributes['aria-label'],'Volume : New <name>');
+  speakerSlider.value=35;speakerSlider.oninput();
+  assert.equal(speakerSlider.style['--level'],'50%');
   status.speakers=[];render();
   assert.equal(get('target').children.length,0);
   assert.equal(get('spkList').children.length,0);

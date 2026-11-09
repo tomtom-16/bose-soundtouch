@@ -595,10 +595,23 @@ color:var(--dim);font:inherit;font-size:14px;cursor:pointer}
 .panel{background:var(--card);border-radius:18px;padding:14px;margin-bottom:16px}
 .vrow{display:flex;align-items:center;gap:12px}
 .vbtn{flex:none;width:52px;height:52px;border-radius:16px;border:0;background:var(--card2);color:var(--txt);
-font-size:28px;font-weight:600;line-height:1}
+display:flex;align-items:center;justify-content:center;cursor:pointer}
+.vbtn svg{width:26px;height:26px}
 .vbtn:active{background:#33333d}
-input[type=range]{flex:1;height:44px;accent-color:var(--acc)}
-#vv{width:30px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim);font-size:15px}
+.vbtn:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+input[type=range]{--level:42.857%;-webkit-appearance:none;appearance:none;flex:1;min-width:0;width:100%;
+height:44px;margin:0;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;
+background:linear-gradient(to right,var(--acc) 0%,var(--acc) var(--level),var(--card2) var(--level),var(--card2) 100%)}
+input[type=range]::-moz-range-track{height:6px;border-radius:99px;background:var(--card2)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:99px;background:var(--acc)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;
+margin-top:-7px;border:3px solid var(--acc);border-radius:50%;background:var(--txt);box-shadow:0 2px 6px #0005}
+input[type=range]::-moz-range-thumb{box-sizing:border-box;width:20px;height:20px;border:3px solid var(--acc);
+border-radius:50%;background:var(--txt);box-shadow:0 2px 6px #0005}
+input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 0 5px #3b82f626}
+input[type=range]:active::-moz-range-thumb{box-shadow:0 0 0 5px #3b82f626}
+#vv{flex:none;width:30px;margin-left:2px;text-align:center;font-variant-numeric:tabular-nums;color:var(--dim);font-size:15px}
 #spkList{margin-top:6px}
 .srow{display:flex;align-items:center;gap:10px;padding:7px 2px}
 .srow .nm{width:86px;font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -733,9 +746,9 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
   <button id="targetAll" class="target-btn" aria-pressed="false">Toutes</button></div>
 <div class="panel">
   <div class="vrow">
-    <button class="vbtn" id="vdn">&minus;</button>
-    <input type="range" id="vol" min="0" max="70" value="30">
-    <button class="vbtn" id="vup">+</button>
+    <button class="vbtn" id="vdn" aria-label="Diminuer le volume" title="Diminuer le volume"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M16 11.9996H22M7.4803 15.4065L9.15553 17.4796C10.0288 18.5603 10.4655 19.1006 10.848 19.1594C11.1792 19.2104 11.5138 19.092 11.7394 18.8443C12 18.5581 12 17.8634 12 16.4739V7.52526C12 6.13581 12 5.44109 11.7394 5.1549C11.5138 4.90715 11.1792 4.78884 10.848 4.83975C10.4655 4.89858 10.0288 5.43893 9.15553 6.51963L7.4803 8.59273C7.30388 8.81105 7.21567 8.92021 7.10652 8.99876C7.00982 9.06835 6.90147 9.1201 6.78656 9.15158C6.65687 9.1871 6.51652 9.1871 6.23583 9.1871H4.8125C4.0563 9.1871 3.6782 9.1871 3.37264 9.28804C2.77131 9.4867 2.2996 9.95841 2.10094 10.5597C2 10.8653 2 11.2434 2 11.9996C2 12.7558 2 13.1339 2.10094 13.4395C2.2996 14.0408 2.77131 14.5125 3.37264 14.7112C3.6782 14.8121 4.0563 14.8121 4.8125 14.8121H6.23583C6.51652 14.8121 6.65687 14.8121 6.78656 14.8476C6.90147 14.8791 7.00982 14.9308 7.10652 15.0004C7.21567 15.079 7.30388 15.1881 7.4803 15.4065Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <input type="range" id="vol" aria-label="Volume principal" min="0" max="70" value="30">
+    <button class="vbtn" id="vup" aria-label="Augmenter le volume" title="Augmenter le volume"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M16 11.9996H22M19 14.9996V8.9996M7.4803 15.4065L9.15553 17.4796C10.0288 18.5603 10.4655 19.1006 10.848 19.1594C11.1792 19.2104 11.5138 19.092 11.7394 18.8443C12 18.5581 12 17.8634 12 16.4739V7.52526C12 6.13581 12 5.44109 11.7394 5.1549C11.5138 4.90715 11.1792 4.78884 10.848 4.83975C10.4655 4.89858 10.0288 5.43893 9.15553 6.51963L7.4803 8.59273C7.30388 8.81105 7.21567 8.92021 7.10652 8.99876C7.00982 9.06835 6.90147 9.1201 6.78656 9.15158C6.65687 9.1871 6.51652 9.1871 6.23583 9.1871H4.8125C4.0563 9.1871 3.6782 9.1871 3.37264 9.28804C2.77131 9.4867 2.2996 9.95841 2.10094 10.5597C2 10.8653 2 11.2434 2 11.9996C2 12.7558 2 13.1339 2.10094 13.4395C2.2996 14.0408 2.77131 14.5125 3.37264 14.7112C3.6782 14.8121 4.0563 14.8121 4.8125 14.8121H6.23583C6.51652 14.8121 6.65687 14.8121 6.78656 14.8476C6.90147 14.8791 7.00982 14.9308 7.10652 15.0004C7.21567 15.079 7.30388 15.1881 7.4803 15.4065Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span id="vv">30</span>
   </div>
   <div id="spkList" hidden></div>
@@ -789,14 +802,19 @@ function buildTiles(stations){
       finally{b.querySelector('.nm').textContent=s.note||pretty(s.id);busy=false;disableTargets(false);refresh()}};
     $('grid').appendChild(b)});
 }
+function updateVolumeSlider(slider,value){
+  slider.value=value;
+  slider.style.setProperty('--level',(Math.max(0,Math.min(70,Number(slider.value)))/70*100)+'%');
+}
 function buildSpeakers(speakers){
   speakers.forEach(s=>{
     const r=document.createElement('div');r.className='srow';r.id='sp-'+s.ip;
     r.innerHTML='<span class="st"></span><span class="nm"></span><input type="range" min="0" max="70">';
     r.querySelector('.nm').textContent=s.name.replace('ST - ','').replace('ST ','');
-    r.querySelector('input').value=s.volume??30;
     const sl=r.querySelector('input');
-    sl.oninput=()=>{touch();clearTimeout(spkT[s.ip]);
+    sl.setAttribute('aria-label','Volume : '+s.name);
+    updateVolumeSlider(sl,s.volume??30);
+    sl.oninput=()=>{updateVolumeSlider(sl,sl.value);touch();clearTimeout(spkT[s.ip]);
       spkT[s.ip]=setTimeout(()=>api('/api/volume/'+sl.value+'?ip='+s.ip).catch(e=>toast(e.message)),350)};
     $('spkList').appendChild(r)});
 }
@@ -841,15 +859,15 @@ function render(st){
   st.stations.forEach(s=>$('st-'+s.id).classList.toggle('playing',live&&s.id===playingStation));
   st.speakers.forEach(s=>{const r=$('sp-'+s.ip);if(!r)return;
     r.querySelector('.st').classList.toggle('on',s.playStatus=='PLAY_STATE');
-    if(idle()&&s.volume!=null)r.querySelector('input').value=s.volume});
+    if(idle()&&s.volume!=null)updateVolumeSlider(r.querySelector('input'),s.volume)});
   if(idle()){const v=selected||st.speakers.find(s=>s.volume!=null);
-    if(v&&v.volume!=null){$('vol').value=v.volume;$('vv').textContent=v.volume}}
+    if(v&&v.volume!=null){updateVolumeSlider($('vol'),v.volume);$('vv').textContent=v.volume}}
 }
 async function refresh(){try{render(await api('/api/status'))}
   catch(e){$('conn').classList.add('off');$('connTxt').textContent='offline'}}
 function selectedVolumeQuery(){return selectedTarget==='all'?'':'?ip='+encodeURIComponent(selectedTarget)}
 $('targetAll').onclick=()=>selectTarget('all');
-function setGroupVol(v){v=Math.max(0,Math.min(70,v));$('vol').value=v;$('vv').textContent=v;touch();
+function setGroupVol(v){v=Math.max(0,Math.min(70,v));updateVolumeSlider($('vol'),v);$('vv').textContent=v;touch();
   clearTimeout(volT);const query=selectedVolumeQuery();volT=setTimeout(()=>api('/api/volume/'+v+query).catch(e=>toast(e.message)),350)}
 $('vol').oninput=()=>setGroupVol(+$('vol').value);
 $('vdn').onclick=()=>setGroupVol(+$('vol').value-5);
