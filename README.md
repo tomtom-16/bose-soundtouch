@@ -74,32 +74,51 @@ coupe pas sa lecture et conserve ses presets dans le fichier pour un éventuel
 réajout avec le même nom. **Annuler** ferme sans enregistrer.
 **Stations** ouvre le catalogue : ajouter une station, modifier son nom affiché et
 sa source (URL HTTP(S) du flux audio ou `tunein:s12345`), ou la supprimer.
-Chaque ligne affiche le titre puis les icônes de modification et de suppression ;
-la source est visible uniquement dans le formulaire d’ajout ou de modification.
+Le catalogue est trié par nom affiché (ordre alphabétique français). Un champ de
+recherche filtre les noms sans tenir compte des majuscules ou des accents.
+Chaque ligne affiche le titre puis les icônes de modification et de suppression.
+L’ajout et la modification ouvrent une fenêtre dédiée avec le nom et la source :
+il n’est plus nécessaire de descendre sous la liste pour accéder au formulaire.
+Annuler revient au catalogue sans enregistrer.
 Le nom affiché peut changer sans modifier l’identifiant interne ni les presets.
 Une confirmation de suppression liste les affectations globales, individuelles et
-les enceintes concernées, en tenant compte de l’héritage. La suppression nettoie
+les enceintes concernées. La suppression nettoie
 également les affectations conservées d’anciennes enceintes. Les presets individuels
-concernés deviennent **Sans affectation**, sans reprendre la liste globale.
+concernés deviennent **Sans affectation**, indépendamment de la liste globale.
 Si la configuration change avant l’enregistrement ou la confirmation, une erreur
 invite à recharger et confirmer à nouveau. Ces opérations ne lancent ni n’arrêtent
 la lecture ; un flux déjà ouvert peut continuer, mais la station supprimée ne peut
 plus être relancée. Les modifications s’appliquent sans redémarrer les services.
 
-Le bouton **Presets**, à côté de **Stations**, ouvre l’éditeur des six
-presets. Choisir **Liste globale — toutes les enceintes** pour définir la liste
-commune, ou une enceinte pour personnaliser ses boutons. Chaque preset individuel
-peut reprendre la liste globale, choisir une station ou rester **Sans affectation**
-(même si le preset global est défini). **Reprendre toute la liste globale** efface
-les exceptions de l’enceinte choisie. La liste globale conserve les exceptions
-des autres enceintes. On peut modifier plusieurs listes avant **Enregistrer** ;
-**Annuler** abandonne toutes les modifications. L’enregistrement met à jour
-`config/presets.json`, l’ordre des stations et les prochains appuis sur les boutons
-physiques, sans redémarrage ni lancement de lecture.
+Le bouton **Presets**, à côté de **Stations**, ouvre le mode d’édition des six
+boutons physiques. Choisir **Liste globale — toutes les enceintes** ou une enceinte,
+puis toucher un preset : une fenêtre
+propose les stations par nom, avec une recherche et l’option **Sans affectation**.
+La station actuelle est signalée. Toucher une station enregistre immédiatement
+ce preset dans la liste choisie, puis revient aux six boutons. **Annuler** dans
+le sélecteur ferme sans changer l’affectation ; fermer l’éditeur principal
+conserve les choix déjà enregistrés. Les erreurs d’enregistrement sont affichées
+dans le sélecteur et permettent de réessayer.
+
+La liste globale correspond au bloc `default` et détermine les numéros et l’ordre
+affichés en mode **Toutes**. Chaque enceinte possède sa propre liste indépendante,
+utilisée pour son affichage et ses boutons physiques. L’éditeur s’ouvre sur la liste
+globale en mode **Toutes**, ou sur l’enceinte sélectionnée. Modifier une liste ne
+change aucune autre liste. **Sans affectation** écrit `null` pour une enceinte ;
+dans la liste globale, cette option retire l’entrée du bouton. La liste globale
+reste modifiable sans enceinte configurée.
+
+Le fichier `presets.json` contient simplement un objet `default` et un objet par
+nom d’enceinte, sans numéro de version. Un bouton absent ou `null` reste sans
+affectation : aucune liste ne reprend celle d’une autre. Une nouvelle enceinte
+commence sans preset ; réajouter une enceinte retirée avec le même nom retrouve sa
+liste conservée. Le démarrage du serveur ne modifie pas ce fichier.
+Les changements mettent à jour `config/presets.json`, l’ordre des stations et les
+prochains appuis sur les boutons physiques, sans redémarrage ni lancement de lecture.
 
 Les stations sont affichées dans l'ordre des presets physiques 1 à 6, avec leur
 numéro sur chaque bouton, à partir de `config/presets.json`. Les correspondances
-propres à l'enceinte choisie remplacent celles de `default` ; en mode toutes les
+propres à l'enceinte choisie sont indépendantes de `default` ; en mode toutes les
 enceintes, l'interface affiche `default`. Les stations sans preset viennent après.
 Le choix explicite de toutes les enceintes active une lecture synchronisée même
 si `sync` vaut `false` (ce réglage reste utilisé par les boutons physiques).

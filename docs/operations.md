@@ -125,13 +125,22 @@ par le listener des boutons. Éviter les commandes répétées rapidement.
 
 ## Boutons et diagnostic
 
-Les stations jouées sont définies dans `config/presets.json`, avec un bloc `default`
-et éventuellement un bloc par nom d'enceinte. Le bouton **Presets** de
-l’interface permet de modifier ces listes sans redémarrage. Une entrée absente
-d’un bloc individuel reprend le preset global ; une valeur `null` le laisse sans
-affectation pour cette enceinte. Un bouton doit également avoir une
-présélection interne Bose pour émettre l'événement attendu. Un changement dans
-le JSON ne programme pas cette présélection interne.
+Les stations jouées sont définies dans `config/presets.json`, avec une liste `default` pour l’affichage **Toutes** et une liste
+indépendante par nom d’enceinte pour ses boutons physiques. Le bouton **Presets** de
+l’interface permet de modifier chaque liste sans redémarrage : toucher un bouton,
+puis une station pour enregistrer immédiatement. Le catalogue et le sélecteur de
+stations sont triés par nom et disposent d’une recherche. Un bouton absent ou `null`
+dans une liste individuelle reste sans affectation ; il n’hérite plus de `default`.
+
+Le fichier contient uniquement les listes, sans numéro de version ni conversion
+automatique. Modifier `default` ne change aucune affectation d’enceinte. Une nouvelle
+enceinte commence sans preset ; les listes d’enceintes retirées restent conservées
+pour un éventuel réajout. Les modèles contiennent des listes indépendantes pour
+les deux enceintes fictives d’exemple.
+
+Un bouton doit également avoir une présélection interne Bose pour émettre
+l’événement attendu. Un changement dans le JSON ne programme pas cette
+présélection interne.
 
 - `http://<IP-enceinte>:8090/presets` : présélections internes.
 - `http://<IP-enceinte>:8090/now_playing` : source et état de lecture.

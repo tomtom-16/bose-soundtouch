@@ -26,11 +26,12 @@ const context=vm.createContext({
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../button_listener.js'),'utf8'),context);
 files['presets.json']={default:{1:'radio',2:'other'},Living:{1:null,3:'local'}};
 assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext("presetMapFor('Living')",context))),
-  {1:null,2:'other',3:'local'});
+  {1:null,3:'local'});
 files['presets.json'].default[2]='updated';
-assert.equal(vm.runInContext("presetMapFor('Living')['2']",context),'updated');
+assert.equal(vm.runInContext("presetMapFor('Living')['2']",context),undefined);
 files['presets.json'].Living={};
-assert.equal(vm.runInContext("presetMapFor('Living')['1']",context),'radio');
+assert.equal(vm.runInContext("presetMapFor('Living')['1']",context),undefined);
+assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext("presetMapFor('New')",context))),{});
 assert.equal(sockets.length,1);
 assert.equal(sockets[0].url,'ws://192.0.2.1:8080');
 intervals[0]();assert.equal(sockets.length,1); // unchanged config keeps the socket

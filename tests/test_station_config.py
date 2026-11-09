@@ -36,14 +36,16 @@ class StationConfigurationTests(unittest.TestCase):
         self.assertEqual(radio.load_json(radio.STATIONS_PATH, {})['radio']['extra'], 1)
         self.write(action='save', id='other', name='Autre', url='http://example.com/live')
 
-    def test_usage_inheritance_and_delete(self):
+    def test_usage_independent_lists_and_delete(self):
         usage = radio.station_snapshot()['usages']['radio']
-        self.assertEqual(usage['effective'], [{'scope': 'Salon', 'numbers': ['2']}, {'scope': 'Cuisine', 'numbers': ['1']}])
+        self.assertEqual(usage['effective'], [{'scope': 'Salon', 'numbers': ['2']}])
         self.assertIn({'scope': 'Removed', 'numbers': ['3']}, usage['direct'])
         self.write(action='delete', id='radio', confirmed=True)
-        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {}), {
-            'default': {'2': 'other'}, 'Salon': {'1': 'other', '2': None},
-            'Chambre': {'1': None}, 'Removed': {'3': None}})
+        expected = self.presets
+        expected = {scope: {n: (None if value == 'radio' else value)
+                            for n, value in mapping.items() if scope != 'default' or value != 'radio'}
+                    for scope, mapping in expected.items()}
+        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {}), expected)
         self.assertNotIn('radio', radio.load_json(radio.STATIONS_PATH, {}))
 
     def test_validation_and_confirmation_do_not_write(self):

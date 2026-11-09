@@ -137,6 +137,8 @@ def configure_speakers(rows):
             if dest in presets and dest not in renames and dest != source:
                 raise ValueError("Ce nom possède déjà des presets : " + dest)
         updated_presets = {renames.get(k, k): v for k, v in presets.items()}
+        for name in result:
+            updated_presets.setdefault(name, {})
         cfg = load_json(CONFIG_PATH, {})
         updated_cfg = dict(cfg)
         if cfg.get("master") in renames: updated_cfg["master"] = renames[cfg["master"]]
@@ -162,7 +164,7 @@ def configure_presets(changes):
     with _CONFIG_LOCK:
         speakers_config = load_json(SPEAKERS_PATH, {})
         stations = load_json(STATIONS_PATH, {})
-        result = dict(load_json(PRESETS_PATH, {}))
+        result = load_json(PRESETS_PATH, {})
         for scope, mapping in changes.items():
             if scope != "default" and scope not in speakers_config:
                 raise ValueError("Enceinte inconnue ou renommée : " + scope)
@@ -172,7 +174,7 @@ def configure_presets(changes):
                 if number not in ("1", "2", "3", "4", "5", "6"):
                     raise ValueError("Les presets doivent être numérotés de 1 à 6.")
                 if station is None and scope != "default":
-                    continue  # Explicitly disable an inherited global preset.
+                    continue  # Explicitly leave this speaker button unassigned.
                 if not isinstance(station, str) or station not in stations:
                     raise ValueError("Station inconnue pour le preset " + number)
             result[scope] = dict(mapping)
@@ -191,7 +193,7 @@ def station_snapshot():
                   for scope, mapping in presets.items() if station_id in mapping.values()]
         effective = []
         for name in speakers:
-            mapping = {**presets.get("default", {}), **presets.get(name, {})}
+            mapping = presets.get(name, {})
             numbers = [n for n, value in mapping.items() if value == station_id]
             if numbers: effective.append({"scope": name, "numbers": numbers})
         usages[station_id] = {"direct": direct, "effective": effective}
@@ -672,16 +674,24 @@ dialog,dialog[open].closing{transform:none}
 .station-row svg{width:24px;height:24px}
 #stationsError{color:#fca5a5}
 #stationSave{background:var(--accD)}
+.search-field{display:block;width:100%;padding:12px;margin:14px 0;border:1px solid #444;
+border-radius:8px;background:var(--card);color:var(--txt);font:inherit}
+#presetEditors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.preset-button{min-height:90px;text-align:left;overflow-wrap:anywhere}
+.preset-button strong{display:block;font-size:12px;color:var(--dim);margin-bottom:8px}
+#presetChoices .action{display:block;width:100%;margin:8px 0;text-align:left;overflow-wrap:anywhere}
+#presetChoices [aria-pressed="true"]{border:1px solid var(--acc)}
+#stationEditError,#presetPickerError{color:#fca5a5}
 .settings-head,.settings-actions{display:flex;justify-content:space-between;align-items:center;gap:10px}
 h2{font-size:20px;margin:0}
-dialog h2[tabindex="-1"]:focus{outline:none}
+dialog:focus,dialog h2[tabindex="-1"]:focus{outline:none}
 .hint{color:var(--dim);font-size:13px;line-height:1.5}
 .speaker-editor{border:1px solid var(--card2);border-radius:14px;padding:14px;margin:14px 0;min-width:0}
 .speaker-editor label,.preset-field{display:block;font-size:13px;margin-bottom:10px;color:var(--dim)}
 .speaker-editor input,.preset-field select{display:block;width:100%;margin-top:5px;padding:11px;border:1px solid #444;
 border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size:16px}
 .remove-speaker{color:#fca5a5}
-#settingsSave,#presetsSave{background:var(--accD)}
+#settingsSave{background:var(--accD)}
 #settingsError,#presetsError{color:#fca5a5;font-size:14px}
 .station-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .station-head .sec{margin-bottom:0}
@@ -696,16 +706,21 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 
 <dialog id="stationsSettings" aria-labelledby="stationsTitle">
 <div class="settings-head"><h2 id="stationsTitle" tabindex="-1" autofocus><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 4H9C8.07003 4 7.60504 4 7.22354 4.10222C6.18827 4.37962 5.37962 5.18827 5.10222 6.22354C5 6.60504 5 7.08922 5 8.01919M5 8.01919C5.31428 8 5.70173 8 6.2 8H17.8C18.9201 8 19.4802 8 19.908 8.21799C20.2843 8.40973 20.5903 8.71569 20.782 9.09202C21 9.51984 21 10.0799 21 11.2V16.8C21 17.9201 21 18.4802 20.782 18.908C20.5903 19.2843 20.2843 19.5903 19.908 19.782C19.4802 20 18.9201 20 17.8 20H6.2C5.07989 20 4.51984 20 4.09202 19.782C3.71569 19.5903 3.40973 19.2843 3.21799 18.908C3 18.4802 3 17.9201 3 16.8V11.2C3 10.0799 3 9.51984 3.21799 9.09202C3.40973 8.71569 3.71569 8.40973 4.09202 8.21799C4.32953 8.09697 4.60779 8.04314 5 8.01919ZM14 12H18M14 16H18M10 14C10 15.1046 9.10457 16 8 16C6.89543 16 6 15.1046 6 14C6 12.8954 6.89543 12 8 12C9.10457 12 10 12.8954 10 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Stations</h2><button type="button" id="stationsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
+<input id="stationSearch" class="search-field" type="search" placeholder="Rechercher une station" aria-label="Rechercher une station">
 <div id="stationList"></div>
 <button type="button" id="stationAdd" class="action">+ Ajouter une station</button>
-<form id="stationForm" hidden>
+<p id="stationsError" role="alert"></p>
+</dialog>
+<dialog id="stationEdit" aria-labelledby="stationEditTitle">
+<h2 id="stationEditTitle" tabindex="-1">Modifier une station</h2>
+<form id="stationForm">
 <fieldset id="stationFields" class="speaker-editor">
 <label>Nom affiché<input id="stationName" required maxlength="100" autocomplete="off"></label>
 <label>URL du flux ou source TuneIn<input id="stationUrl" required maxlength="4096" placeholder="https://… ou tunein:s12345" autocomplete="off"></label>
 <p class="hint">Modifier une station conserve ses presets. Utilisez l’URL du flux audio, plutôt que celle du site de la radio.</p>
 <div class="settings-actions"><button type="button" id="stationCancel" class="action">Annuler</button><button id="stationSave" type="submit" class="action">Enregistrer</button></div>
-</fieldset></form>
-<p id="stationsError" role="alert"></p>
+</fieldset>
+<p id="stationEditError" role="alert"></p></form>
 </dialog>
 <dialog id="stationDelete" aria-labelledby="stationDeleteTitle">
 <h2 id="stationDeleteTitle" tabindex="-1" autofocus>Supprimer la station ?</h2>
@@ -725,18 +740,22 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 </form></dialog>
 
 <dialog id="presetsSettings" aria-labelledby="presetsTitle">
-<form id="presetsForm">
+<div id="presetsForm">
 <div class="settings-head"><h2 id="presetsTitle" tabindex="-1" autofocus><svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" aria-hidden="true"><path d="M23.2,10.2C18.1,5.1,10,3.5,2.9,5.7C2.6,5.7,2.2,6.2,2.2,7s0,3,0,3.9c0,0.8,0.7,1,1.1,0.9 c5.4-2.2,12-1.2,16.3,3.3l1.1,1.1c0.6,0.6,0.1,1.7-0.7,1.7h-7.8c-0.8,0-1.5,0.6-1.5,1.5v3c0,0.8,0.6,1.5,1.5,1.5l19.2,0.2 c0.8,0,1.5-0.6,1.5-1.5L33,3.5C33,2.7,32.4,2,31.5,2h-3c-0.8,0-1.6,0.6-1.6,1.4l-0.1,7.9c0,0.8-1.1,1.3-1.7,0.7 C25.2,12.1,23.2,10.2,23.2,10.2z"/><path d="M3.5,27.8h3c0.8,0,1.5,0.7,1.5,1.5v13.2C8,43.3,8.7,44,9.5,44h33c0.8,0,1.5-0.7,1.5-1.5V16.9 c0-0.8-0.7-1.5-1.5-1.5h-4c-0.8,0-1.5-0.7-1.5-1.5v-3c0-0.8,0.7-1.5,1.5-1.5H46c2.2,0,4,1.8,4,4V46c0,2.2-1.8,4-4,4H6 c-2.2,0-4-1.8-4-4V29.3C2,28.5,2.7,27.8,3.5,27.8z"/></svg>Presets</h2><button type="button" id="presetsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
-<p class="hint">Associez les boutons 1 à 6 aux stations. La liste globale s’applique à toutes les enceintes ; chaque enceinte peut remplacer certains presets.</p>
+<p class="hint">Choisissez la liste globale ou une enceinte, puis touchez un preset pour changer sa station. Chaque choix est enregistré immédiatement, sans lancer de lecture.</p>
 <fieldset id="presetsFields" class="speaker-editor">
 <label class="preset-field">Configurer pour<select id="presetsScope"></select></label>
 <div id="presetEditors"></div>
-<button type="button" id="presetsReset" class="action">Reprendre toute la liste globale</button>
 </fieldset>
-<p class="hint">« Sans affectation » désactive ce preset pour l’enceinte choisie. Enregistrer applique vos changements aux boutons physiques et à l’affichage des stations, sans lancer de lecture.</p>
+<p class="hint">La liste globale sert à l’affichage « Toutes ». Chaque enceinte possède ses propres presets indépendants. « Sans affectation » désactive le preset dans la liste choisie.</p>
 <p id="presetsError" role="alert"></p>
-<div class="settings-actions"><button type="button" id="presetsCancel" class="action">Annuler</button><button type="submit" id="presetsSave" class="action">Enregistrer</button></div>
-</form></dialog>
+</div></dialog>
+<dialog id="presetPicker" aria-labelledby="presetPickerTitle">
+<div class="settings-head"><h2 id="presetPickerTitle" tabindex="-1">Choisir une station</h2><button type="button" id="presetPickerClose" class="action">Annuler</button></div>
+<input id="presetSearch" class="search-field" type="search" placeholder="Rechercher une station" aria-label="Rechercher une station pour ce preset">
+<div id="presetChoices"></div>
+<p id="presetPickerError" role="alert"></p>
+</dialog>
 
 <div id="hero"><div class="eq"><span></span><span></span><span></span></div>
 <div class="t"><div id="hTitle">Off</div><div id="hSub">Choisir une enceinte puis une station</div></div>
@@ -840,7 +859,7 @@ function render(st){
   $('targetAll').setAttribute('aria-pressed',String(target==='all'));
   $('spkList').hidden=target!=='all';
   const selected=st.speakers.find(s=>s.ip===target);
-  const mapping={...(st.presets?.default||{}),...(selected?st.presets?.[selected.name]||{}:{})};
+  const mapping=(selected?st.presets?.[selected.name]:st.presets?.default)||{};
   const stations=st.stations.map(s=>({...s,numbers:Object.keys(mapping)
     .filter(n=>/^[1-6]$/.test(n)&&mapping[n]===s.id).map(Number).sort((a,b)=>a-b)}))
     .sort((a,b)=>(a.numbers[0]??99)-(b.numbers[0]??99));
@@ -928,14 +947,17 @@ function editStation(id=null){
   const value=id===null?null:stationConfig.stations[id];
   $('stationName').value=id===null?'':stationLabel(id,value);
   $('stationUrl').value=typeof value==='string'?value:value?.url||'';
-  $('stationForm').hidden=false;$('stationsError').textContent='';$('stationName').focus();
+  $('stationEditTitle').textContent=id===null?'Ajouter une station':'Modifier une station';
+  $('stationEditError').textContent='';$('stationEdit').showModal();$('stationName').focus();
 }
 function renderStationList(){
   $('stationList').replaceChildren();
   if(!Object.keys(stationConfig.stations).length){
     const empty=document.createElement('p');empty.className='hint';empty.textContent='Aucune station. Ajoutez votre première station.';$('stationList').appendChild(empty);
   }
-  for(const [id,value] of Object.entries(stationConfig.stations)){
+  for(const [id,value] of Object.entries(stationConfig.stations)
+    .sort((a,b)=>stationLabel(...a).localeCompare(stationLabel(...b),'fr',{sensitivity:'base',numeric:true}))
+    .filter(([id,value])=>matchesStation(stationLabel(id,value),$('stationSearch').value))){
     const row=document.createElement('fieldset');row.className='speaker-editor station-row';
     const name=document.createElement('strong');name.textContent=stationLabel(id,value);row.appendChild(name);
     const edit=document.createElement('button');edit.type='button';edit.className='action';edit.disabled=stationSaving;
@@ -963,86 +985,106 @@ function renderStationList(){
 async function loadStations(){stationConfig=await api('/api/stations');renderStationList()}
 $('stationsOpen').onclick=async()=>{
   if(busy)return;$('settingsMenu').hidePopover();
-  try{await loadStations();$('stationForm').hidden=true;$('stationsError').textContent='';$('stationsSettings').showModal()}
+  try{$('stationSearch').value='';await loadStations();$('stationsError').textContent='';$('stationsSettings').showModal()}
   catch(e){toast('Erreur : '+e.message)}
 };
 $('stationsClose').onclick=()=>{if(!stationSaving)return closeDialog($('stationsSettings'))};
 $('stationsSettings').oncancel=e=>{e.preventDefault();if(!stationSaving)return closeDialog($('stationsSettings'))};
 $('stationAdd').onclick=()=>editStation();
-$('stationCancel').onclick=()=>{$('stationForm').hidden=true};
+$('stationSearch').oninput=renderStationList;
+$('stationCancel').onclick=()=>{if(!stationSaving)return closeDialog($('stationEdit'))};
+$('stationEdit').oncancel=e=>{e.preventDefault();if(!stationSaving)return closeDialog($('stationEdit'))};
 $('stationDeleteCancel').onclick=()=>{if(!stationSaving)return closeDialog($('stationDelete'))};
 $('stationDelete').oncancel=e=>{e.preventDefault();if(!stationSaving)return closeDialog($('stationDelete'))};
 async function writeStation(payload){
   if(stationSaving)return;
-  stationSaving=true;$('stationsError').textContent='';$('stationFields').disabled=true;
+  stationSaving=true;$('stationsError').textContent='';$('stationEditError').textContent='';$('stationFields').disabled=true;
   $('stationAdd').disabled=true;$('stationDeleteConfirm').disabled=true;renderStationList();
   try{
     await api('/api/stations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,revision:stationConfig.revision})});
-    $('stationForm').hidden=true;toast(payload.action==='delete'?'Station supprimée':'Station enregistrée');
+    await closeDialog($('stationEdit'));toast(payload.action==='delete'?'Station supprimée':'Station enregistrée');
     await loadStations();await refresh();
-  }catch(e){$('stationsError').textContent=e.message;try{await loadStations()}catch{}}
+  }catch(e){$(payload.action==='delete'?'stationsError':'stationEditError').textContent=e.message;try{await loadStations()}catch{}}
   finally{stationSaving=false;$('stationFields').disabled=false;$('stationAdd').disabled=false;
     $('stationDeleteConfirm').disabled=false;await closeDialog($('stationDelete'));renderStationList()}
 }
 $('stationForm').onsubmit=e=>{e.preventDefault();return writeStation({action:'save',id:stationEditing,name:$('stationName').value,url:$('stationUrl').value})};
 $('stationDeleteConfirm').onclick=()=>writeStation({action:'delete',id:stationDeleting,confirmed:true});
-let presetsSaving=false,presetDrafts={},presetChanges={},presetStations=[];
+// Global and speaker lists are independent; missing slots stay unassigned.
+const searchKey=value=>value.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLocaleLowerCase('fr');
+const matchesStation=(label,query)=>searchKey(label).includes(searchKey(query.trim()));
+let presetsSaving=false,presetDrafts={},presetStations=[],presetNumber=null;
+function effectivePreset(scope,n){
+  return presetDrafts[scope]?.[n];
+}
+function presetLabel(value){return value?(presetStations.find(s=>s.id===value)?.note||pretty(value)):'Sans affectation'}
 function buildPresetEditors(){
-  const scope=$('presetsScope').value,mapping=presetDrafts[scope]||{};
-  $('presetEditors').replaceChildren();$('presetsReset').hidden=scope==='default';
+  const scope=$('presetsScope').value;
+  $('presetEditors').replaceChildren();
+  $('presetsError').textContent=scope?'':'Ajoutez une enceinte dans les réglages pour configurer ses presets.';
+  if(!scope)return;
   for(let n=1;n<=6;n++){
-    const label=document.createElement('label');label.className='preset-field';label.textContent='Preset '+n;
-    const select=document.createElement('select');select.name=String(n);
-    if(scope!=='default'){
-      const inherited=presetDrafts.default?.[n];
-      const station=presetStations.find(s=>s.id===inherited);
-      select.add(new Option('Liste globale — '+(inherited?(station?.note||pretty(inherited)):'sans affectation'),'inherit'));
-    }
-    select.add(new Option('Sans affectation',''));
-    presetStations.forEach(s=>select.add(new Option(s.note||pretty(s.id),'station:'+s.id)));
-    const value=mapping[n];
-    if(value&&!presetStations.some(s=>s.id===value))select.add(new Option('Station indisponible : '+value,'station:'+value));
-    select.value=value?'station:'+value:(scope!=='default'&&value===undefined?'inherit':'');
-    select.onchange=()=>{
-      const draft=presetDrafts[scope];
-      if(select.value==='inherit'||(scope==='default'&&!select.value))delete draft[n];
-      else draft[n]=select.value?select.value.slice(8):null;
-      presetChanges[scope]=draft;
+    const button=document.createElement('button');button.type='button';button.className='action preset-button';
+    const number=document.createElement('strong');number.textContent='Preset '+n;button.appendChild(number);
+    const name=document.createElement('span');name.textContent=presetLabel(effectivePreset(scope,n));button.appendChild(name);
+    button.onclick=()=>{
+      presetNumber=n;$('presetPickerTitle').textContent=(scope==='default'?'Liste globale':scope)+' — Preset '+n;
+      $('presetSearch').value='';$('presetPickerError').textContent='';buildPresetChoices();$('presetPicker').showModal();
     };
-    label.appendChild(select);$('presetEditors').appendChild(label);
+    $('presetEditors').appendChild(button);
   }
 }
+function buildPresetChoices(){
+  $('presetChoices').replaceChildren();
+  const current=effectivePreset($('presetsScope').value,presetNumber);
+  const choices=[{id:null,note:'Sans affectation'},...presetStations.filter(s=>matchesStation(s.note||pretty(s.id),$('presetSearch').value))];
+  for(const station of choices){
+    const button=document.createElement('button');button.type='button';button.className='action';button.textContent=station.note||pretty(station.id);
+    button.disabled=presetsSaving;button.setAttribute('aria-pressed',String((current??null)===station.id));
+    button.onclick=()=>savePreset(station.id);$('presetChoices').appendChild(button);
+  }
+  if(choices.length===1&&$('presetSearch').value.trim()){
+    const empty=document.createElement('p');empty.className='hint';empty.textContent='Aucune station trouvée.';$('presetChoices').appendChild(empty);
+  }
+}
+async function savePreset(station){
+  if(presetsSaving)return;
+  const scope=$('presetsScope').value,mapping={...presetDrafts[scope],[presetNumber]:station};
+  if(scope==='default'&&station===null)delete mapping[presetNumber];
+  presetsSaving=true;$('presetSearch').disabled=true;$('presetPickerError').textContent='';buildPresetChoices();
+  try{
+    await api('/api/presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({presets:{[scope]:mapping}})});
+    presetDrafts[scope]=mapping;buildPresetEditors();await closePresetPicker();toast('Preset enregistré');await refresh();
+  }catch(e){$('presetPickerError').textContent=e.message}
+  finally{presetsSaving=false;$('presetSearch').disabled=false;buildPresetChoices()}
+}
+async function closePresetPicker(){
+  await closeDialog($('presetPicker'));
+  if($('presetsSettings').open)$('presetEditors').children[presetNumber-1]?.focus({preventScroll:true});
+}
 function closePresets(){if(!presetsSaving)return closeDialog($('presetsSettings'))}
-$('presetsClose').onclick=closePresets;$('presetsCancel').onclick=closePresets;
-$('presetsSettings').oncancel=e=>{e.preventDefault();if(!presetsSaving)return closeDialog($('presetsSettings'))};
+$('presetsClose').onclick=closePresets;
+$('presetsSettings').oncancel=e=>{e.preventDefault();return closePresets()};
 $('presetsScope').onchange=buildPresetEditors;
-$('presetsReset').onclick=()=>{
-  const scope=$('presetsScope').value;if(scope==='default')return;
-  presetDrafts[scope]={};presetChanges[scope]=presetDrafts[scope];buildPresetEditors();
-};
+$('presetSearch').oninput=buildPresetChoices;
+$('presetPickerClose').onclick=()=>{if(!presetsSaving)return closePresetPicker()};
+$('presetPicker').oncancel=e=>{e.preventDefault();if(!presetsSaving)return closePresetPicker()};
 $('presetsOpen').onclick=async()=>{
   if(busy)return;$('presetsOpen').disabled=true;
   try{
     const config=await api('/api/presets');
-    presetDrafts=Object.assign(Object.create(null),config.presets);presetChanges=Object.create(null);presetStations=config.stations;
-    $('presetsScope').replaceChildren();$('presetsScope').add(new Option('Liste globale — toutes les enceintes','default'));
+    presetDrafts=Object.assign(Object.create(null),config.presets);
+    presetStations=config.stations.sort((a,b)=>(a.note||pretty(a.id)).localeCompare(b.note||pretty(b.id),'fr',{sensitivity:'base',numeric:true}));
+    $('presetsScope').replaceChildren();
+    $('presetsScope').add(new Option('Liste globale — toutes les enceintes','default'));
+    presetDrafts.default??={};
     for(const name of Object.keys(config.speakers)){
       $('presetsScope').add(new Option(name,name));presetDrafts[name]??={};
     }
-    presetDrafts.default??={};
     const selected=currentStatus?.speakers.find(s=>s.ip===selectedTarget)?.name;
     $('presetsScope').value=selected&&Object.hasOwn(config.speakers,selected)?selected:'default';
-    buildPresetEditors();$('presetsError').textContent='';$('presetsSettings').showModal();
+    buildPresetEditors();$('presetsSettings').showModal();
   }catch(e){toast('Erreur : '+e.message)}finally{$('presetsOpen').disabled=false}
-};
-$('presetsForm').onsubmit=async e=>{
-  e.preventDefault();if(presetsSaving)return;
-  presetsSaving=true;$('presetsFields').disabled=true;$('presetsSave').disabled=true;$('presetsError').textContent='';
-  try{
-    await api('/api/presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({presets:presetChanges})});
-    await closeDialog($('presetsSettings'));toast('Presets enregistrés');await refresh();
-  }catch(e){$('presetsError').textContent=e.message}
-  finally{presetsSaving=false;$('presetsFields').disabled=false;$('presetsSave').disabled=false}
 };
 refresh();setInterval(refresh,5000);
 </script></body></html>"""

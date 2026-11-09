@@ -61,7 +61,7 @@ function upnpPlay(ip, proxyUrl, title) {
 
 function presetMapFor(name) {
   const presets = rd('presets.json', {});
-  return Object.assign({}, presets.default || {}, presets[name] || {});
+  return presets[name] || {};
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));

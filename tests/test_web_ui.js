@@ -4,6 +4,7 @@ const vm=require('node:vm');
 const {execFileSync}=require('node:child_process');
 const script=execFileSync('python3',['-c','import bose_radio; print(bose_radio.CONTROL_PAGE.split("<script>")[1].split("</script>")[0])'],{encoding:'utf8'});
 const elements=new Map();
+let focusedElement=null;
 class Element{
   constructor(){this.children=[];this.options=[];this.style={setProperty(name,value){this[name]=value}};this.parts={};this.value='';this.textContent='';this.classList={add(){},remove(){},toggle(){},contains(){return false}};}
   setAttribute(name,value){(this.attributes??={})[name]=value}
@@ -14,7 +15,7 @@ class Element{
   add(o){this.options.push(o);if(this.options.length===1)this.value=o.value}
   appendChild(c){this.children.push(c);c.parent=this}
   remove(){this.parent.children=this.parent.children.filter(c=>c!==this)}
-  focus(){}
+  focus(){focusedElement=this}
   getAnimations(){return []}
   hidePopover(){this.open=false}
   showModal(){this.open=true}
@@ -43,7 +44,7 @@ const context=vm.createContext({document:{getElementById:get,createElement:()=>n
   setTimeout:()=>0,clearTimeout(){},setInterval(){}});
 vm.runInContext(script.replace('refresh();setInterval(refresh,5000);',''),context);
 const stations=['four','five','one','two','three','six','extra'].map(id=>({id,note:id}));
-const status={stations,presets:{default:{1:'one',2:'two',3:'three',4:'four',5:'five',6:'six'},Bath:{1:'two',2:'one'}},
+const status={stations,presets:{default:{1:'one',2:'two',3:'three',4:'four',5:'five',6:'six'},Bath:{1:'two',2:'one',3:'three',4:'four',5:'five',6:'six'},Living:{1:'one',2:'two',3:'three',4:'four',5:'five',6:'six'}},
   default_speaker:'Living',speakers:[{name:'Living',ip:'192.0.2.1',volume:20,station:'one',playStatus:'PLAY_STATE'},
     {name:'Bath',ip:'192.0.2.2',volume:30,station:'two',playStatus:'PLAY_STATE'}]};
 context.status=status;
@@ -117,15 +118,21 @@ function render(){vm.runInContext('render(status)',context)}
   await get('stationsOpen').onclick();
   assert.equal(get('stationsSettings').open,true);
   assert.equal(get('stationList').children.length,1);
+  get('stationSearch').value='absent';get('stationSearch').oninput();
+  assert.equal(get('stationList').children.length,0);
+  get('stationSearch').value='ÔNE';get('stationSearch').oninput();
+  assert.equal(get('stationList').children.length,1);
   get('stationList').children[0].children[1].onclick();
   assert.equal(get('stationName').value,'One');
+  assert.equal(get('stationEdit').open,true);
   get('stationName').value='Renamed';
   await get('stationForm').onsubmit({preventDefault(){}});
   assert.deepEqual(JSON.parse(writes.at(-1).body),{action:'save',id:'one',name:'Renamed',url:'https://example.com/live',revision:'revision-1'});
   get('stationAdd').onclick();
   assert.equal(get('stationName').value,'');
   const beforeCancel=writes.length;
-  get('stationCancel').onclick();
+  await get('stationCancel').onclick();
+  assert.equal(get('stationEdit').open,false);
   assert.equal(writes.length,beforeCancel);
   await get('stationList').children[0].children[2].onclick();
   assert.equal(get('stationDelete').open,true);
@@ -138,54 +145,72 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('stationDelete').open,false);
   get('stationAdd').onclick();fail=true;
   await get('stationForm').onsubmit({preventDefault(){}});
-  assert.equal(get('stationsError').textContent,'test failure');
+  assert.equal(get('stationEditError').textContent,'test failure');
   assert.equal(get('stationFields').disabled,false);
-  assert.equal(get('stationForm').hidden,false);
-  fail=false;await get('stationsClose').onclick();
+  assert.equal(get('stationEdit').open,true);
+  fail=false;await get('stationCancel').onclick();await get('stationsClose').onclick();
   get('target').children[1].onclick();
   await get('presetsOpen').onclick();
   assert.equal(get('presetsSettings').open,true);
   assert.equal(get('presetsScope').value,'Bath');
-  const preset=n=>get('presetEditors').children[n-1].children[0];
-  const choose=(n,value)=>{preset(n).value=value&&value!=='inherit'?'station:'+value:value;preset(n).onchange()};
-  const scope=value=>{get('presetsScope').value=value;get('presetsScope').onchange()};
+  const preset=n=>get('presetEditors').children[n-1];
+  const choose=async(n,label)=>{
+    preset(n).onclick();
+    await get('presetChoices').children.find(button=>button.textContent===label).onclick();
+  };
   assert.equal(get('presetEditors').children.length,6);
-  assert.equal(preset(1).value,'station:two');
-  assert.equal(preset(3).value,'inherit');
-  choose(1,''); // suppress a global preset
-  choose(2,'inherit'); // remove an individual override
-  scope('default');
-  choose(3,'extra');
-  choose(6,''); // clear a global slot
-  scope('Bath');
-  assert.equal(preset(1).value,'');
-  assert.equal(preset(2).value,'inherit');
-  assert.ok(preset(3).options[0].textContent.includes('extra'));
+  assert.equal(preset(1).children[1].textContent,'two');
+  assert.equal(preset(3).children[1].textContent,'three'); // independent speaker assignment
+  preset(1).onclick();
+  assert.equal(get('presetPicker').open,true);
+  assert.deepEqual(get('presetChoices').children.slice(1).map(b=>b.textContent),['extra','five','four','one','six','three','two']);
+  get('presetSearch').value='THRÉE';get('presetSearch').oninput();
+  assert.deepEqual(get('presetChoices').children.map(b=>b.textContent),['Sans affectation','three']);
+  const beforePickerCancel=writes.length;
+  await get('presetPickerClose').onclick();
+  assert.equal(writes.length,beforePickerCancel);
+  assert.equal(focusedElement,preset(1));
+  preset(3).onclick();
+  await get('presetPicker').oncancel({preventDefault(){}});
+  assert.equal(focusedElement,preset(3));
+  await choose(1,'Sans affectation');
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Bath:{1:null,2:'one',3:'three',4:'four',5:'five',6:'six'}}});
+  assert.equal(get('presetPicker').open,false);
+  assert.equal(preset(1).children[1].textContent,'Sans affectation');
+  assert.equal(focusedElement,preset(1));
   fail=true;
-  await get('presetsForm').onsubmit({preventDefault(){}});
-  assert.equal(get('presetsSettings').open,true);
-  assert.equal(get('presetsError').textContent,'test failure');
-  assert.equal(get('presetsFields').disabled,false);
-  assert.equal(get('presetsSave').disabled,false);
+  await choose(3,'extra');
+  assert.equal(get('presetPicker').open,true);
+  assert.equal(get('presetPickerError').textContent,'test failure');
+  assert.equal(preset(3).children[1].textContent,'three');
+  assert.ok(get('presetChoices').children.every(b=>!b.disabled));
   fail=false;
-  await get('presetsForm').onsubmit({preventDefault(){}});
-  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Bath:{1:null},
-    default:{1:'one',2:'two',3:'extra',4:'four',5:'five'}}});
-  assert.equal(requests.at(-2),'/api/presets');
-  assert.equal(get('presetsSettings').open,false);
-  await get('presetsOpen').onclick();
-  get('presetsReset').onclick();
-  assert.ok(get('presetEditors').children.every(label=>label.children[0].value==='inherit'));
-  await get('presetsForm').onsubmit({preventDefault(){}});
-  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Bath:{}}});
-  await get('presetsOpen').onclick();
-  choose(1,'extra');
-  const count=writes.length;
-  await get('presetsCancel').onclick();
-  assert.equal(writes.length,count);
-  await get('presetsOpen').onclick();
-  assert.equal(preset(1).value,'station:two');
+  await get('presetChoices').children.find(b=>b.textContent==='extra').onclick();
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Bath:{1:null,2:'one',3:'extra',4:'four',5:'five',6:'six'}}});
+  assert.equal(preset(3).children[1].textContent,'extra');
+  assert.equal(get('presetPicker').open,false);
+  // Switching speakers does not leak an edit to the global list or another speaker.
+  get('presetsScope').value='Living';get('presetsScope').onchange();
+  await choose(2,'six');
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{Living:{1:'one',2:'six',3:'three',4:'four',5:'five',6:'six'}}});
+  get('presetsScope').value='default';get('presetsScope').onchange();
+  await choose(3,'five');
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{default:{1:'one',2:'two',3:'five',4:'four',5:'five',6:'six'}}});
+  await choose(6,'Sans affectation');
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{presets:{default:{1:'one',2:'two',3:'five',4:'four',5:'five'}}});
+  assert.equal(preset(6).children[1].textContent,'Sans affectation');
+  get('presetsScope').value='Living';get('presetsScope').onchange();
+  assert.equal(preset(2).children[1].textContent,'six'); // explicit override preserved
+  assert.equal(preset(3).children[1].textContent,'three'); // global change has no effect
+  assert.equal(preset(6).children[1].textContent,'six');
+  get('presetsScope').value='Bath';get('presetsScope').onchange();
+  assert.equal(preset(1).children[1].textContent,'Sans affectation'); // explicit null preserved
   await get('presetsClose').onclick();
+  get('targetAll').onclick();
+  await get('presetsOpen').onclick();
+  assert.equal(get('presetsScope').value,'default');
+  await get('presetsClose').onclick();
+  get('target').children[1].onclick();
   status.presets.Bath[1]=null;render();
   assert.equal(get('grid').children.find(c=>c.id==='st-two').querySelector('.preset').textContent,'Sans preset');
   status.speakers=[{name:'New <name>',ip:'192.0.2.3',volume:12,playStatus:'STANDBY'}];render();
@@ -218,9 +243,21 @@ function render(){vm.runInContext('render(status)',context)}
   get('targetAll').onclick();
   await get('presetsOpen').onclick();
   assert.equal(get('presetsScope').value,'default');
-  assert.equal(get('presetsReset').hidden,true);
+  assert.equal(get('presetEditors').children.length,6);
   assert.equal(get('presetsScope').options.length,1);
   assert.ok(!script.includes('Les presets seront configurables dans une prochaine étape'));
+  // A long catalogue stays sorted, searchable, and opens a separate editor.
+  vm.runInContext("stationConfig={stations:Object.fromEntries(Array.from({length:50},(_,i)=>['id-'+(50-i),{note:'Radio '+(50-i),url:'https://example.com/live'}]))};renderStationList()",context);
+  get('stationSearch').value='';get('stationSearch').oninput();
+  assert.equal(get('stationList').children.length,50);
+  assert.equal(get('stationList').children[0].children[0].textContent,'Radio 1');
+  assert.equal(get('stationList').children.at(-1).children[0].textContent,'Radio 50');
+  get('stationList').children.at(-1).children[1].onclick();
+  assert.equal(get('stationEdit').open,true);
+  assert.equal(get('stationName').value,'Radio 50');
+  await get('stationCancel').onclick();
+  get('stationSearch').value='Radio 50';get('stationSearch').oninput();
+  assert.equal(get('stationList').children.length,1);
   // A native close must wait for the exit animation, even without CSS overlay support.
   const dialog=get('settings');dialog.showModal();
   let finishAnimation;
@@ -229,5 +266,5 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(dialog.open,true);
   finishAnimation();await closing;
   assert.equal(dialog.open,false);
-  console.log('Web UI: playback, station catalogue CRUD, deletion confirmation, presets, inheritance and speaker settings passed');
+  console.log('Web UI: playback, station catalogue CRUD, deletion confirmation, independent global/speaker presets and speaker settings passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

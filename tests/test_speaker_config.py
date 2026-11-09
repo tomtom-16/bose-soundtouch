@@ -56,7 +56,10 @@ class SpeakerConfigurationTests(unittest.TestCase):
         radio.configure_speakers([])
         self.assertEqual(radio.load_json(radio.SPEAKERS_PATH, None), {})
         self.assertNotIn('master', radio.load_json(radio.CONFIG_PATH, {}))
-        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {})['Salon'], {'2': 'other'})
+        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {})['Salon'],
+                         {'2': 'other'})
+        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {})['Kitchen'],
+                         {})
 
     def test_atomic_write_failure_keeps_original_file(self):
         with patch.object(radio.os, 'replace', side_effect=OSError('read only')):

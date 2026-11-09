@@ -30,8 +30,10 @@ version d'origine et peut contenir des chemins ou réglages devenus obsolètes.
 - Conserver le relais audio à la demande : pas de flux permanent, préchauffage,
   transcodage ni modification du firmware.
 - Préserver la cohérence entre Python, le listener et l'interface pour les presets :
-  une exception absente hérite de `default`, tandis que `null` signifie explicitement
-  « Sans affectation ». Les identifiants des stations sont distincts des noms affichés.
+  les listes par enceinte sont indépendantes de `default`
+  (affichage Toutes). Une entrée absente ou `null` signifie « Sans affectation ».
+  Le fichier contient uniquement les listes, sans version, migration ni héritage.
+  Les identifiants des stations sont distincts des noms affichés.
 - Préserver le rechargement de configuration sans redémarrage et la détection des
   modifications concurrentes lors des opérations qui la prennent en charge.
 - Mettre à jour la documentation et les modèles si le comportement ou les réglages

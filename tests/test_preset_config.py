@@ -30,6 +30,16 @@ class PresetConfigurationTests(unittest.TestCase):
         self.assertEqual(result, {**self.original, 'default': {'6': 'other'}})
         self.assertEqual(radio.load_json(radio.PRESETS_PATH, {}), result)
 
+    def test_global_changes_do_not_fill_or_modify_individual_lists(self):
+        radio.save_json(radio.PRESETS_PATH, {**self.original, 'Living': {'1': None}})
+        result = radio.configure_presets({'default': {'1': 'other', '3': 'other'}})
+        self.assertEqual(result['Living'], {'1': None})
+        self.assertEqual(result['Removed'], self.original['Removed'])
+        self.assertNotIn('3', result['Living'])
+        radio.save_json(radio.SPEAKERS_PATH, {'Living': {}, 'New': {}})
+        result = radio.configure_presets({'default': {'1': 'radio'}})
+        self.assertNotIn('New', result)
+
     def test_individual_override_disable_and_reset(self):
         result = radio.configure_presets({'Living': {'1': None, '6': 'other'}})
         self.assertEqual(result['Living'], {'1': None, '6': 'other'})
