@@ -70,3 +70,62 @@ formulaire sans écrire de configuration. Les appareils connus sont reconnus par
 concurrentes depuis l’ouverture de la liste. Les tests couvrent les réponses
 invalides, les doublons, les erreurs réseau, l’annulation et les routes HTTP avec
 des simulations, sans validation matérielle.
+
+## Découpage du code Python et extraction web
+
+`bose_radio.py` est désormais le point d’entrée minimal de `soundtouch.cli`.
+Les fonctions sont réparties entre configuration, découverte, primitives Bose,
+lecture, streaming, watchdog et serveur HTTP. Chaque verrou conserve un propriétaire
+unique. L’interface est extraite dans `web/index.html`, `web/styles.css` et
+`web/app.js`, sans réécriture des interactions ; seuls les fichiers explicitement
+autorisés sont servis. Les commandes des lanceurs restent identiques.
+
+Vérifications effectuées sur le Mac pour ce découpage :
+
+- Avant modification : 32 tests Python et les deux suites JavaScript réussis.
+- Après extraction : 42 tests Python réussis, comprenant le nettoyage des flux
+  pendant le transfert et les décisions du watchdog avec horloge et réseau simulés.
+- Suites du listener et de l’interface réussies ; syntaxe des deux scripts JS
+  et aide CLI vérifiées.
+- Imports sans réseau, processus ou thread, chemins par défaut et personnalisés
+  (`BOSE_CONFIG_DIR` / `BOSE_DATA_DIR`) depuis un autre répertoire vérifiés.
+- HTML, CSS, JS et réponses 404 vérifiés par HTTP sur boucle locale, avec des
+  fichiers temporaires sans enceinte ; lanceur de développement vérifié par simulation.
+- Comparaison des fonctions extraites : logique conservée hors qualification des
+  dépendances ; contenu HTML/CSS/JS conservé hors liens vers les ressources externes.
+- Image Python construite avec le paquet et les ressources web, sans lancement
+  des services. Le moteur Docker local est disponible ; le plugin Compose reste
+  absent, donc `docker compose config` n’a pas pu être exécuté.
+
+Lors du découpage initial, aucune configuration réelle ni enceinte n’a été modifiée ;
+aucun déploiement, commit ou push n’a été effectué.
+Ces simulations et cette construction locale ne valident pas le fonctionnement
+matériel ni l’exploitation de la stack sur Linux/LXC.
+
+L’anomalie préexistante de nettoyage des flux est corrigée : un bloc `finally`
+protège désormais toute la phase suivant l’ouverture réussie de l’amont, y compris
+l’envoi des en-têtes HTTP. Le compteur n’est décrémenté que pour un transfert
+effectivement comptabilisé. Des tests déterministes ont reproduit la fuite avant
+correction pour `send_response`, les deux `send_header` et `end_headers`. Ils
+vérifient la fermeture et le compteur après ces erreurs, une fin normale, des
+erreurs de lecture, d’écriture et de fermeture, avec ou sans autre connexion active
+pour la même IP. Toutes les assertions antérieures sont conservées. Les 44 tests
+Python et les deux suites JavaScript passent après correction. Ces vérifications
+utilisent des simulations et des serveurs HTTP sur boucle locale ; aucune enceinte
+ni aucun flux réel n’a été contacté, sans validation matérielle ou Linux/LXC.
+
+
+### Contrôle du correctif de nettoyage
+
+Une relecture du correctif confirme que le `finally` de fermeture englobe l’envoi
+des en-têtes, tandis que le `finally` du compteur reste placé après l’incrément.
+Les erreurs d’en-têtes conservent ainsi leur propagation sans laisser le flux
+amont ouvert ni retirer une autre connexion active de la même IP.
+
+Les 44 tests Python ont été réexécutés avec succès, ainsi que les suites du
+listener et de l’interface, les contrôles de syntaxe JavaScript et l’aide CLI.
+Les tests comprennent les chemins depuis un autre répertoire, les imports sans
+démarrage réseau et le service HTTP des ressources autorisées. `git diff --check`
+ne signale aucune erreur. L’image Python incluant le correctif a également été
+reconstruite avec succès, sans lancement des services. Le plugin Compose est
+toujours absent ; aucune validation matérielle ni d’exploitation Linux/LXC n’est ajoutée par ce contrôle.

@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 
-import bose_radio as radio
+from soundtouch import config, server as web_server
 
 
 class SpeakerConfigurationTests(unittest.TestCase):
@@ -17,24 +17,24 @@ class SpeakerConfigurationTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         for constant, filename in [('SPEAKERS_PATH', 'speakers.json'),
                                    ('PRESETS_PATH', 'presets.json'), ('CONFIG_PATH', 'config.json')]:
-            replacement = patch.object(radio, constant, os.path.join(self.directory.name, filename))
+            replacement = patch.object(config, constant, os.path.join(self.directory.name, filename))
             replacement.start()
             self.addCleanup(replacement.stop)
         self.original = {'Living': {'ip': '192.0.2.1', 'deviceID': 'AABBCCDDEEFF', 'extra': True}}
-        radio.save_json(radio.SPEAKERS_PATH, self.original)
-        radio.save_json(radio.PRESETS_PATH, {'default': {'1': 'radio'}, 'Living': {'2': 'other'}})
-        radio.save_json(radio.CONFIG_PATH, {'master': 'Living', 'sync': False})
+        config.save_json(config.SPEAKERS_PATH, self.original)
+        config.save_json(config.PRESETS_PATH, {'default': {'1': 'radio'}, 'Living': {'2': 'other'}})
+        config.save_json(config.CONFIG_PATH, {'master': 'Living', 'sync': False})
         self.row = {'original_name': 'Living', 'name': 'Salon', 'ip': '192.0.2.2',
                     'deviceID': 'aabbccddeeff', 'model': 'SoundTouch 10'}
 
     def test_rename_preserves_metadata_presets_and_master(self):
-        result = radio.configure_speakers([self.row])
-        self.assertEqual(radio.load_json(radio.SPEAKERS_PATH, None), result)
+        result = config.configure_speakers([self.row])
+        self.assertEqual(config.load_json(config.SPEAKERS_PATH, None), result)
         self.assertEqual(result['Salon']['deviceID'], 'AABBCCDDEEFF')
         self.assertTrue(result['Salon']['extra'])
-        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {}),
+        self.assertEqual(config.load_json(config.PRESETS_PATH, {}),
                          {'default': {'1': 'radio'}, 'Salon': {'2': 'other'}})
-        self.assertEqual(radio.load_json(radio.CONFIG_PATH, {}), {'master': 'Salon', 'sync': False})
+        self.assertEqual(config.load_json(config.CONFIG_PATH, {}), {'master': 'Salon', 'sync': False})
 
     def test_invalid_changes_do_not_write_any_files(self):
         invalid = [{**self.row, 'ip': '999.1.1.1'}, {**self.row, 'name': ''},
@@ -42,61 +42,61 @@ class SpeakerConfigurationTests(unittest.TestCase):
                    {**self.row, 'original_name': 'Missing'}, {**self.row, 'ip': 123}]
         for row in invalid:
             with self.subTest(row=row), self.assertRaises(ValueError):
-                radio.configure_speakers([row])
+                config.configure_speakers([row])
         for key in ['ip', 'name', 'deviceID']:
             second = {'name': 'Bath', 'ip': '192.0.2.3', 'deviceID': '112233445566'}
             second[key] = self.row[key]
             with self.subTest(duplicate=key), self.assertRaises(ValueError):
-                radio.configure_speakers([self.row, second])
-        self.assertEqual(radio.load_json(radio.SPEAKERS_PATH, {}), self.original)
-        self.assertIn('Living', radio.load_json(radio.PRESETS_PATH, {}))
+                config.configure_speakers([self.row, second])
+        self.assertEqual(config.load_json(config.SPEAKERS_PATH, {}), self.original)
+        self.assertIn('Living', config.load_json(config.PRESETS_PATH, {}))
 
     def test_add_and_remove_all_retains_dormant_presets(self):
-        radio.configure_speakers([self.row, {'name': 'Kitchen', 'ip': '192.0.2.3', 'deviceID': '112233445566'}])
-        radio.configure_speakers([])
-        self.assertEqual(radio.load_json(radio.SPEAKERS_PATH, None), {})
-        self.assertNotIn('master', radio.load_json(radio.CONFIG_PATH, {}))
-        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {})['Salon'],
+        config.configure_speakers([self.row, {'name': 'Kitchen', 'ip': '192.0.2.3', 'deviceID': '112233445566'}])
+        config.configure_speakers([])
+        self.assertEqual(config.load_json(config.SPEAKERS_PATH, None), {})
+        self.assertNotIn('master', config.load_json(config.CONFIG_PATH, {}))
+        self.assertEqual(config.load_json(config.PRESETS_PATH, {})['Salon'],
                          {'2': 'other'})
-        self.assertEqual(radio.load_json(radio.PRESETS_PATH, {})['Kitchen'],
+        self.assertEqual(config.load_json(config.PRESETS_PATH, {})['Kitchen'],
                          {})
 
     def test_stale_revision_cannot_overwrite_concurrent_changes(self):
-        for path in (radio.SPEAKERS_PATH, radio.PRESETS_PATH, radio.CONFIG_PATH):
+        for path in (config.SPEAKERS_PATH, config.PRESETS_PATH, config.CONFIG_PATH):
             with self.subTest(path=path):
-                revision = radio.speaker_snapshot()['revision']
-                changed = radio.load_json(path, {})
+                revision = config.speaker_snapshot()['revision']
+                changed = config.load_json(path, {})
                 changed['concurrent'] = {}
-                radio.save_json(path, changed)
+                config.save_json(path, changed)
                 with self.assertRaisesRegex(ValueError, 'Configuration modifiée'):
-                    radio.configure_speakers([self.row], revision)
-                self.assertEqual(radio.load_json(path, {}), changed)
+                    config.configure_speakers([self.row], revision)
+                self.assertEqual(config.load_json(path, {}), changed)
 
     def test_atomic_write_failure_keeps_original_file(self):
-        with patch.object(radio.os, 'replace', side_effect=OSError('read only')):
+        with patch.object(config.os, 'replace', side_effect=OSError('read only')):
             with self.assertRaises(OSError):
-                radio.save_json(radio.SPEAKERS_PATH, {'partial': {}})
-        self.assertEqual(radio.load_json(radio.SPEAKERS_PATH, {}), self.original)
+                config.save_json(config.SPEAKERS_PATH, {'partial': {}})
+        self.assertEqual(config.load_json(config.SPEAKERS_PATH, {}), self.original)
         self.assertFalse(any(name.startswith('.config-') for name in os.listdir(self.directory.name)))
 
     def test_atomic_save_preserves_existing_permissions(self):
-        os.chmod(radio.SPEAKERS_PATH, 0o640)
-        radio.save_json(radio.SPEAKERS_PATH, self.original)
-        self.assertEqual(os.stat(radio.SPEAKERS_PATH).st_mode & 0o777, 0o640)
+        os.chmod(config.SPEAKERS_PATH, 0o640)
+        config.save_json(config.SPEAKERS_PATH, self.original)
+        self.assertEqual(os.stat(config.SPEAKERS_PATH).st_mode & 0o777, 0o640)
 
     def test_failed_speaker_write_rolls_back_renames(self):
-        save = radio.save_json
+        save = config.save_json
         def fail_speakers(path, value):
-            if path == radio.SPEAKERS_PATH: raise OSError('read only')
+            if path == config.SPEAKERS_PATH: raise OSError('read only')
             save(path, value)
-        with patch.object(radio, 'save_json', side_effect=fail_speakers):
-            with self.assertRaises(OSError): radio.configure_speakers([self.row])
-        self.assertEqual(radio.load_json(radio.SPEAKERS_PATH, {}), self.original)
-        self.assertIn('Living', radio.load_json(radio.PRESETS_PATH, {}))
-        self.assertEqual(radio.load_json(radio.CONFIG_PATH, {})['master'], 'Living')
+        with patch.object(config, 'save_json', side_effect=fail_speakers):
+            with self.assertRaises(OSError): config.configure_speakers([self.row])
+        self.assertEqual(config.load_json(config.SPEAKERS_PATH, {}), self.original)
+        self.assertIn('Living', config.load_json(config.PRESETS_PATH, {}))
+        self.assertEqual(config.load_json(config.CONFIG_PATH, {})['master'], 'Living')
 
     def test_http_read_save_invalid_and_write_error(self):
-        server = ThreadingHTTPServer(('127.0.0.1', 0), radio.ProxyHandler)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), web_server.ProxyHandler)
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()
         self.addCleanup(server.server_close)
@@ -121,7 +121,7 @@ class SpeakerConfigurationTests(unittest.TestCase):
         self.assertEqual(request('POST', '{broken', headers)[0], 400)
         self.assertEqual(request('POST', body)[0], 415)
         self.assertEqual(request('POST', body, {**headers, 'Origin': 'http://example.com'})[0], 403)
-        with patch.object(radio, 'save_json', side_effect=OSError('read only')):
+        with patch.object(config, 'save_json', side_effect=OSError('read only')):
             valid = json.dumps({'speakers': []})
             code, result = request('POST', valid, headers)
             self.assertEqual(code, 500)

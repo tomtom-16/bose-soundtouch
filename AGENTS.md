@@ -6,8 +6,10 @@ Ce dépôt permet de lancer des radios avec les six boutons physiques des Bose
 SoundTouch et une interface web locale. Le Mac sert au développement ; la cible
 de déploiement est un serveur Linux/LXC avec Docker Compose en réseau hôte.
 
-- `bose_radio.py` : proxy audio à la demande, API HTTP, interface web embarquée
-  (HTML/CSS/JavaScript dans `CONTROL_PAGE`) et commandes de contrôle.
+- `bose_radio.py` : point d’entrée minimal vers `soundtouch.cli.main()`.
+- `soundtouch/` : configuration, découverte, primitives Bose, lecture, streaming,
+  watchdog, serveur HTTP et CLI, répartis en modules sans démarrage à l’import.
+- `web/` : interface servie par Python (`index.html`, `styles.css`, `app.js`).
 - `button_listener.js` : événements WebSocket Bose et gestion des boutons.
 - `config/*.example.json` et `.env.example` : modèles versionnés.
 - `scripts/init_config.py` : initialisation sans écrasement des fichiers existants.
@@ -69,7 +71,7 @@ node tests/test_web_ui.js
 ```
 
 Vérifier aussi la syntaxe du listener après modification avec
-`node --check button_listener.js`. Pour une modification de la stack, utiliser
+`node --check button_listener.js` et `node --check web/app.js`. Pour une modification de la stack, utiliser
 `docker compose config` si Compose est disponible. Indiquer les vérifications
 non exécutées ; une validation locale ne remplace pas un essai sur Linux/LXC.
 

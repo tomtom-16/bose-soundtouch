@@ -44,7 +44,7 @@ def main():
     except (OSError, ValueError) as error:
         parser.exit(2, f"{error}\nPréparer les fichiers avec : python3 scripts/init_config.py\n")
     if args.service == "server":
-        # Même processus : les points d'arrêt VS Code fonctionnent dans bose_radio.py.
+        # Même processus : les points d'arrêt VS Code fonctionnent dans soundtouch/.
         sys.argv = [str(ROOT / "bose_radio.py"), "serve"]
         sys.path.insert(0, str(ROOT))
         runpy.run_path(sys.argv[0], run_name="__main__")

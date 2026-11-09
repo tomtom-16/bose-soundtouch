@@ -1,8 +1,9 @@
-// Exercise the actual embedded UI with a minimal DOM; no browser dependency.
+// Exercise the actual web/app.js with a minimal DOM; no browser dependency.
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
-const {execFileSync}=require('node:child_process');
-const script=execFileSync('python3',['-c','import bose_radio; print(bose_radio.CONTROL_PAGE.split("<script>")[1].split("</script>")[0])'],{encoding:'utf8'});
+const {readFileSync}=require('node:fs');
+const path=require('node:path');
+const script=readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
 const elements=new Map();
 let focusedElement=null;
 class Element{

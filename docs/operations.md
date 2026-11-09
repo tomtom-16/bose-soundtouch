@@ -6,7 +6,9 @@ La cible reste une LXC Linux avec Docker Engine et Compose v2 fonctionnels.
 Le même code tourne localement avec Python et en production dans les deux
 services `bose-radio` (proxy, interface web et API) et `bose-buttons` (listener).
 Il n'y a pas de troisième conteneur web à ajouter : l'interface est servie par
-`bose_radio.py serve`, sur le même port que les flux radio.
+`bose_radio.py serve` (via `soundtouch.server`), sur le même port que les flux radio.
+Le point d’entrée, le paquet `soundtouch/` et les ressources `web/` doivent être
+installés ensemble ; le Dockerfile Python copie ces trois éléments.
 VS Code et les dépendances de débogage ne sont pas requis
 sur la LXC. Le lanceur `scripts/dev.py` sert uniquement au lancement local.
 

@@ -10,7 +10,9 @@ Les radios Internet, et TuneIn pour les sources `tunein:…`, restent nécessair
 Les scripts Python et Node restent à la racine pour garder les commandes simples.
 
 ```text
-bose_radio.py            Proxy, interface web et commandes de contrôle
+bose_radio.py            Point d’entrée des commandes Python
+soundtouch/             Modules Python : configuration, Bose, lecture, proxy et API
+web/                    Interface : index.html, styles.css et app.js
 button_listener.js      Écoute des boutons physiques
 compose.yml             Stack Linux : proxy + listener
 config/                 Modèles versionnés et configuration locale ignorée
@@ -23,6 +25,21 @@ docs/                   Fonctionnement, exploitation et état du projet
 examples/               Services systemd, launchd et tâches Windows
 local/                  Historiques de conversation et sauvegardes, hors Git
 ```
+
+Le point d’entrée appelle `soundtouch.cli.main()` et conserve les commandes existantes.
+`config` possède les chemins, validations, révisions et le verrou de configuration ;
+`discovery` possède la découverte SSDP/mDNS et son verrou ; `device` regroupe les
+primitives Bose. `playback` coordonne la lecture et l’état persistant, avec un appel
+à `discovery` pour conserver l’ancienne découverte automatique si la liste est vide.
+`streaming` possède le relais et le compteur de connexions ; `watchdog` décide des
+reprises. `server` assemble ces modules pour les routes HTTP et `cli` pour les commandes.
+Aucun import ne démarre de serveur, de thread ou d’échange réseau.
+
+Les ressources web sont résolues depuis le projet, indépendamment du répertoire
+courant. Le serveur autorise uniquement `/`, `/index.html`, `/styles.css` et `/app.js`
+pour les fichiers statiques. Le JavaScript reste un script classique unique.
+Pour installer ou copier le code, conserver `soundtouch/` et `web/` avec le point
+d’entrée ; l’image Python les embarque également.
 
 ## Démarrage sur un nouveau serveur Linux
 
@@ -203,7 +220,7 @@ l'interface agissent sur les enceintes réellement configurées.
 
 Dans **VS Code**, installer les extensions Python et Python Debugger de Microsoft,
 sélectionner l'interpréteur Python 3, puis lancer **Bose : serveur web local** avec
-F5. Les points d'arrêt fonctionnent dans `bose_radio.py`. Le menu
+F5. Les points d'arrêt fonctionnent dans les modules `soundtouch/`. Le menu
 **Terminal → Exécuter la tâche** propose la préparation des fichiers et le listener
 (après `npm ci`). Arrêter le serveur avec le débogueur ou Ctrl-C dans le terminal.
 
