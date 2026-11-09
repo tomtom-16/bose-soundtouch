@@ -676,6 +676,10 @@ dialog,dialog[open].closing{transform:none}
 #stationSave{background:var(--accD)}
 .search-field{display:block;width:100%;padding:12px;margin:14px 0;border:1px solid #444;
 border-radius:8px;background:var(--card);color:var(--txt);font:inherit}
+.station-search{display:flex;align-items:center;gap:8px;margin:14px 0}
+.station-search .search-field{flex:1;min-width:0;margin:0}
+#stationAdd{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:10px;background:#15803d;color:#fff}
+#stationAdd svg{width:24px;height:24px}
 #presetEditors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .preset-button{min-height:90px;text-align:left;overflow-wrap:anywhere}
 .preset-button strong{display:block;font-size:12px;color:var(--dim);margin-bottom:8px}
@@ -706,9 +710,11 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 
 <dialog id="stationsSettings" aria-labelledby="stationsTitle">
 <div class="settings-head"><h2 id="stationsTitle" tabindex="-1" autofocus><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 4H9C8.07003 4 7.60504 4 7.22354 4.10222C6.18827 4.37962 5.37962 5.18827 5.10222 6.22354C5 6.60504 5 7.08922 5 8.01919M5 8.01919C5.31428 8 5.70173 8 6.2 8H17.8C18.9201 8 19.4802 8 19.908 8.21799C20.2843 8.40973 20.5903 8.71569 20.782 9.09202C21 9.51984 21 10.0799 21 11.2V16.8C21 17.9201 21 18.4802 20.782 18.908C20.5903 19.2843 20.2843 19.5903 19.908 19.782C19.4802 20 18.9201 20 17.8 20H6.2C5.07989 20 4.51984 20 4.09202 19.782C3.71569 19.5903 3.40973 19.2843 3.21799 18.908C3 18.4802 3 17.9201 3 16.8V11.2C3 10.0799 3 9.51984 3.21799 9.09202C3.40973 8.71569 3.71569 8.40973 4.09202 8.21799C4.32953 8.09697 4.60779 8.04314 5 8.01919ZM14 12H18M14 16H18M10 14C10 15.1046 9.10457 16 8 16C6.89543 16 6 15.1046 6 14C6 12.8954 6.89543 12 8 12C9.10457 12 10 12.8954 10 14Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Stations</h2><button type="button" id="stationsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
+<div class="station-search">
 <input id="stationSearch" class="search-field" type="search" placeholder="Rechercher une station" aria-label="Rechercher une station">
+<button type="button" id="stationAdd" class="action" aria-label="Ajouter une station" title="Ajouter une station"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="M11 8C11 7.44772 11.4477 7 12 7C12.5523 7 13 7.44772 13 8V11H16C16.5523 11 17 11.4477 17 12C17 12.5523 16.5523 13 16 13H13V16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16V13H8C7.44771 13 7 12.5523 7 12C7 11.4477 7.44772 11 8 11H11V8Z" fill="currentColor"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M23 12C23 18.0751 18.0751 23 12 23C5.92487 23 1 18.0751 1 12C1 5.92487 5.92487 1 12 1C18.0751 1 23 5.92487 23 12ZM3.00683 12C3.00683 16.9668 7.03321 20.9932 12 20.9932C16.9668 20.9932 20.9932 16.9668 20.9932 12C20.9932 7.03321 16.9668 3.00683 12 3.00683C7.03321 3.00683 3.00683 7.03321 3.00683 12Z" fill="currentColor"></path></g></svg></button>
+</div>
 <div id="stationList"></div>
-<button type="button" id="stationAdd" class="action">+ Ajouter une station</button>
 <p id="stationsError" role="alert"></p>
 </dialog>
 <dialog id="stationEdit" aria-labelledby="stationEditTitle">
@@ -717,7 +723,7 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 <fieldset id="stationFields" class="speaker-editor">
 <label>Nom affiché<input id="stationName" required maxlength="100" autocomplete="off"></label>
 <label>URL du flux ou source TuneIn<input id="stationUrl" required maxlength="4096" placeholder="https://… ou tunein:s12345" autocomplete="off"></label>
-<p class="hint">Modifier une station conserve ses presets. Utilisez l’URL du flux audio, plutôt que celle du site de la radio.</p>
+<p class="hint"><span id="stationPresetsHint">Modifier une station conserve ses presets. </span>Utilisez l’URL du flux audio, plutôt que celle du site de la radio.</p>
 <div class="settings-actions"><button type="button" id="stationCancel" class="action">Annuler</button><button id="stationSave" type="submit" class="action">Enregistrer</button></div>
 </fieldset>
 <p id="stationEditError" role="alert"></p></form>
@@ -948,6 +954,7 @@ function editStation(id=null){
   $('stationName').value=id===null?'':stationLabel(id,value);
   $('stationUrl').value=typeof value==='string'?value:value?.url||'';
   $('stationEditTitle').textContent=id===null?'Ajouter une station':'Modifier une station';
+  $('stationPresetsHint').hidden=id===null;
   $('stationEditError').textContent='';$('stationEdit').showModal();$('stationName').focus();
 }
 function renderStationList(){

@@ -76,6 +76,8 @@ réajout avec le même nom. **Annuler** ferme sans enregistrer.
 sa source (URL HTTP(S) du flux audio ou `tunein:s12345`), ou la supprimer.
 Le catalogue est trié par nom affiché (ordre alphabétique français). Un champ de
 recherche filtre les noms sans tenir compte des majuscules ou des accents.
+Le bouton d’ajout vert, représenté par un plus entouré blanc sans texte, se trouve à droite
+du champ de recherche.
 Chaque ligne affiche le titre puis les icônes de modification et de suppression.
 L’ajout et la modification ouvrent une fenêtre dédiée avec le nom et la source :
 il n’est plus nécessaire de descendre sous la liste pour accéder au formulaire.
