@@ -61,8 +61,14 @@ hauteur du navigateur. Sur mobile, elles occupent toute la largeur disponible. L
 défile si nécessaire ; les boutons de fermeture ou d’annulation restent disponibles.
 L’ouverture et la fermeture utilisent un fondu avec un léger déplacement vertical,
 désactivés si le système demande de réduire les animations.
-**Enceintes** ouvre la configuration des enceintes : ajouter, modifier
-ou retirer une enceinte, puis **Enregistrer**. Les champs sont le nom local,
+**Enceintes** ouvre une liste triée par nom (ordre alphabétique français), avec
+une recherche insensible aux majuscules et aux accents. Le bouton d’ajout vert
+avec un plus entouré blanc se trouve en haut, à droite de la recherche. Chaque
+ligne affiche le nom et les icônes de modification et de retrait. L’ajout et la
+modification ouvrent une fenêtre dédiée ; **Enregistrer** applique immédiatement
+le changement, puis revient à la liste. **Annuler** revient sans modifier cette
+enceinte. Le retrait demande une confirmation, puis s’applique immédiatement.
+Il n’y a plus d’enregistrement global. Les champs sont le nom local,
 l'adresse IPv4, le `deviceID` Bose (12 caractères hexadécimaux) et le modèle
 facultatif. Le `deviceID` se trouve dans `http://<IP-enceinte>:8090/info`.
 L'enregistrement écrit dans `config/speakers.json` ; aucun fichier réel n'est
@@ -71,7 +77,7 @@ le listener recharge ses connexions sous deux secondes, sans redémarrage.
 Renommer une enceinte conserve ses presets individuels et son éventuel rôle
 `master` en mettant aussi à jour les JSON concernés. Retirer une enceinte ne
 coupe pas sa lecture et conserve ses presets dans le fichier pour un éventuel
-réajout avec le même nom. **Annuler** ferme sans enregistrer.
+réajout avec le même nom. Fermer la liste conserve les changements déjà enregistrés.
 **Stations** ouvre le catalogue : ajouter une station, modifier son nom affiché et
 sa source (URL HTTP(S) du flux audio ou `tunein:s12345`), ou la supprimer.
 Le catalogue est trié par nom affiché (ordre alphabétique français). Un champ de
@@ -118,10 +124,14 @@ liste conservée. Le démarrage du serveur ne modifie pas ce fichier.
 Les changements mettent à jour `config/presets.json`, l’ordre des stations et les
 prochains appuis sur les boutons physiques, sans redémarrage ni lancement de lecture.
 
-Les stations sont affichées dans l'ordre des presets physiques 1 à 6, avec leur
-numéro sur chaque bouton, à partir de `config/presets.json`. Les correspondances
-propres à l'enceinte choisie sont indépendantes de `default` ; en mode toutes les
-enceintes, l'interface affiche `default`. Les stations sans preset viennent après.
+La grille affiche toujours six boutons, dans l’ordre **Preset 1** à **Preset 6**.
+Sous chaque numéro figure le nom de la station affectée, ou **Sans affectation**
+si le bouton est absent, `null` ou référence une station inconnue. Un bouton sans
+affectation ne lance aucune lecture. Une nouvelle enceinte affiche donc six
+boutons **Sans affectation**, à configurer avec **Presets**. Les correspondances
+propres à l’enceinte choisie sont indépendantes de `default` ; en mode **Toutes**,
+l’interface affiche `default`. Les autres stations restent accessibles dans le
+sélecteur de l’éditeur de presets et dans le catalogue des réglages.
 Le choix explicite de toutes les enceintes active une lecture synchronisée même
 si `sync` vaut `false` (ce réglage reste utilisé par les boutons physiques).
 

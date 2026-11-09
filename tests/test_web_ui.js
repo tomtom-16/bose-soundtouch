@@ -35,6 +35,10 @@ let fail=false;
 const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},
   Option:function(textContent,value){Object.assign(this,{textContent,value})},
   fetch:async (p,options)=>{requests.push(p);if(options)writes.push(options);
+    if(p==='/api/speakers'&&options&&!fail){
+      speakerConfig=Object.fromEntries(JSON.parse(options.body).speakers.map(s=>[s.name,
+        {ip:s.ip,deviceID:s.deviceID.toUpperCase(),model:s.model}]));
+    }
     return {ok:!fail,json:async()=>fail?{ok:false,error:'test failure'}:
       p==='/api/stations'?{stations:{one:{note:'One',url:'https://example.com/live'}},revision:'revision-1',usages:{one:{direct:[{scope:'default',numbers:['1']}],effective:[{scope:'Living',numbers:['1']}]}}}:
       p==='/api/speakers'?{ok:true,speakers:speakerConfig}:
@@ -51,7 +55,8 @@ context.status=status;
 function render(){vm.runInContext('render(status)',context)}
 (async()=>{
   render();
-  assert.deepEqual(get('grid').children.map(c=>c.id),['st-one','st-two','st-three','st-four','st-five','st-six','st-extra']);
+  assert.deepEqual(get('grid').children.map(c=>c.id),['preset-1','preset-2','preset-3','preset-4','preset-5','preset-6']);
+  assert.deepEqual(get('grid').children.map(c=>c.stationId),['one','two','three','four','five','six']);
   assert.equal(get('grid').children[0].querySelector('.preset').textContent,'Preset 1');
   assert.equal(get('target').children.length,2);
   assert.equal(get('target').children[0].attributes['aria-pressed'],'true');
@@ -62,7 +67,7 @@ function render(){vm.runInContext('render(status)',context)}
   get('target').children[1].onclick();
   assert.equal(get('target').children[0].attributes['aria-pressed'],'false');
   assert.equal(get('target').children[1].attributes['aria-pressed'],'true');
-  assert.equal(get('grid').children[0].id,'st-two');
+  assert.equal(get('grid').children[0].stationId,'two');
   assert.equal(get('hTitle').textContent,'two');
   assert.equal(get('vol').value,30);
   await get('grid').children[0].onclick();
@@ -95,26 +100,82 @@ function render(){vm.runInContext('render(status)',context)}
   await get('speakersOpen').onclick();
   assert.equal(get('settings').open,true);
   const row=get('speakerEditors').children[0];
-  row.querySelector('[name="name"]').value='Salon <test>';
-  get('speakerAdd').onclick();
-  assert.equal(get('speakerEditors').children.length,2);
-  get('speakerEditors').children[1].children.at(-1).onclick();
-  assert.equal(get('speakerEditors').children.length,1);
-  await get('settingsForm').onsubmit({preventDefault(){}});
+  assert.equal(row.children[0].textContent,'Living');
+  assert.equal(row.children.length,3); // name and actions, no inline inputs
+  row.children[1].onclick();
+  assert.equal(get('speakerEdit').open,true);
+  assert.equal(get('speakerDeviceID').value,'AABBCCDDEEFF');
+  get('speakerName').value='Salon <test>';
+  const beforeSpeakerEdit=writes.length;
+  await get('speakerForm').onsubmit({preventDefault(){}});
+  assert.equal(get('speakerEdit').open,false);
+  assert.equal(writes.length,beforeSpeakerEdit+1);
   assert.equal(writes.at(-1).method,'POST');
   assert.deepEqual(JSON.parse(writes.at(-1).body).speakers,[{
     original_name:'Living',name:'Salon <test>',ip:'192.0.2.1',deviceID:'AABBCCDDEEFF',model:''}]);
-  assert.equal(get('settings').open,false);
-  await get('speakersOpen').onclick();
-  fail=true;
-  await get('settingsForm').onsubmit({preventDefault(){}});
   assert.equal(get('settings').open,true);
-  assert.equal(get('settingsError').textContent,'test failure');
-  assert.equal(get('settingsSave').disabled,false);
-  assert.equal(get('speakerEditors').children[0].disabled,false);
-  await get('settingsCancel').onclick();
-  assert.equal(get('settings').open,false);
+  assert.equal(get('speakerEditors').children[0].children[0].textContent,'Salon <test>');
+  // The next edit uses the saved name, including after a rename.
+  get('speakerEditors').children[0].children[1].onclick();
+  get('speakerName').value='Salon';
+  await get('speakerForm').onsubmit({preventDefault(){}});
+  assert.equal(JSON.parse(writes.at(-1).body).speakers[0].original_name,'Salon <test>');
+  get('speakerAdd').onclick();
+  assert.equal(get('speakerName').value,'');
+  get('speakerName').value='Bureau 2';get('speakerIp').value='192.0.2.2';
+  get('speakerDeviceID').value='112233445566';
+  const beforeSpeakerCancel=writes.length;
+  await get('speakerCancel').onclick();
+  assert.equal(writes.length,beforeSpeakerCancel);
+  assert.equal(get('speakerEditors').children.length,1);
+  get('speakerAdd').onclick();
+  get('speakerName').value='Bureau 2';get('speakerIp').value='192.0.2.2';
+  get('speakerDeviceID').value='112233445566';
+  fail=true;
+  await get('speakerForm').onsubmit({preventDefault(){}});
+  assert.equal(get('speakerEdit').open,true);
+  assert.equal(get('speakerEditError').textContent,'test failure');
+  assert.equal(get('speakerFields').disabled,false);
+  assert.equal(get('speakerName').value,'Bureau 2');
+  assert.equal(get('speakerEditors').children.length,1); // failed write leaves the list intact
   fail=false;
+  await get('speakerForm').onsubmit({preventDefault(){}});
+  assert.equal(JSON.parse(writes.at(-1).body).speakers[0].original_name,'Salon');
+  assert.equal(JSON.parse(writes.at(-1).body).speakers[1].original_name,'');
+  assert.deepEqual(get('speakerEditors').children.map(r=>r.children[0].textContent),['Bureau 2','Salon']);
+  get('speakerSearch').value='BÚREAU';get('speakerSearch').oninput();
+  assert.equal(get('speakerEditors').children.length,1);
+  get('speakerSearch').value='absent';get('speakerSearch').oninput();
+  assert.equal(get('speakerEditors').children.length,0);
+  get('speakerSearch').value='';get('speakerSearch').oninput();
+  const beforeSpeakerDelete=writes.length;
+  get('speakerEditors').children[0].children[2].onclick();
+  assert.equal(get('speakerDelete').open,true);
+  assert.ok(get('speakerDeleteText').textContent.includes('Bureau 2'));
+  await get('speakerDeleteCancel').onclick();
+  assert.equal(writes.length,beforeSpeakerDelete);
+  assert.equal(get('speakerEditors').children.length,2);
+  get('speakerEditors').children[0].children[2].onclick();
+  fail=true;await get('speakerDeleteConfirm').onclick();
+  assert.equal(get('speakerDelete').open,true);
+  assert.equal(get('speakerDeleteError').textContent,'test failure');
+  assert.equal(get('speakerDeleteConfirm').disabled,false);
+  assert.equal(get('speakerEditors').children.length,2);
+  fail=false;await get('speakerDeleteConfirm').onclick();
+  assert.equal(get('speakerDelete').open,false);
+  assert.equal(get('speakerEditors').children.length,1);
+  assert.deepEqual(JSON.parse(writes.at(-1).body).speakers.map(s=>s.name),['Salon']);
+  await get('settingsClose').onclick();
+  await get('speakersOpen').onclick();
+  assert.equal(get('speakerEditors').children[0].children[0].textContent,'Salon');
+  await get('settingsClose').onclick();
+  speakerConfig={};
+  await get('speakersOpen').onclick();
+  assert.ok(get('speakerEditors').children[0].textContent.includes('Aucune enceinte'));
+  assert.equal(get('speakerEdit').open,false);
+  await get('settingsClose').onclick();
+  speakerConfig={Living:{ip:'192.0.2.1',deviceID:'AABBCCDDEEFF'}};
+  assert.ok(!script.includes("$('settingsSave')"));
   await get('stationsOpen').onclick();
   assert.equal(get('stationsSettings').open,true);
   assert.equal(get('stationList').children.length,1);
@@ -212,8 +273,24 @@ function render(){vm.runInContext('render(status)',context)}
   await get('presetsClose').onclick();
   get('target').children[1].onclick();
   status.presets.Bath[1]=null;render();
-  assert.equal(get('grid').children.find(c=>c.id==='st-two').querySelector('.preset').textContent,'Sans preset');
+  assert.equal(get('grid').children[0].querySelector('.preset').textContent,'Preset 1');
+  assert.equal(get('grid').children[0].querySelector('.nm').textContent,'Sans affectation');
+  assert.equal(get('grid').children[0].disabled,true);
+  const beforeUnassigned=writes.length,requestsBeforeUnassigned=requests.length;
+  await get('grid').children[0].onclick();
+  assert.equal(requests.length,requestsBeforeUnassigned);
+  assert.equal(writes.length,beforeUnassigned);
   status.speakers=[{name:'New <name>',ip:'192.0.2.3',volume:12,playStatus:'STANDBY'}];render();
+  assert.equal(get('grid').children.length,6);
+  assert.deepEqual(get('grid').children.map(c=>c.querySelector('.preset').textContent),
+    ['Preset 1','Preset 2','Preset 3','Preset 4','Preset 5','Preset 6']);
+  assert.ok(get('grid').children.every(c=>c.disabled&&c.querySelector('.nm').textContent==='Sans affectation'));
+  status.presets['New <name>']={1:'one',2:'one',3:'unknown',4:null};render();
+  assert.deepEqual(get('grid').children.slice(0,2).map(c=>c.querySelector('.nm').textContent),['one','one']);
+  assert.ok(get('grid').children.slice(2).every(c=>c.disabled&&c.querySelector('.nm').textContent==='Sans affectation'));
+  get('targetAll').onclick();
+  assert.equal(get('grid').children[0].querySelector('.nm').textContent,'one');
+  get('target').children[0].onclick();
   assert.equal(get('target').children.length,1);
   assert.equal(get('target').children[0].textContent,'New <name>');
   assert.equal(get('spkList').children.length,1);

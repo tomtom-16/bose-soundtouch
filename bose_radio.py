@@ -673,19 +673,19 @@ dialog,dialog[open].closing{transform:none}
 .station-row .action{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:10px}
 .station-row svg{width:24px;height:24px}
 #stationsError{color:#fca5a5}
-#stationSave{background:var(--accD)}
+#stationSave,#speakerSave{background:var(--accD)}
 .search-field{display:block;width:100%;padding:12px;margin:14px 0;border:1px solid #444;
 border-radius:8px;background:var(--card);color:var(--txt);font:inherit}
 .station-search{display:flex;align-items:center;gap:8px;margin:14px 0}
 .station-search .search-field{flex:1;min-width:0;margin:0}
-#stationAdd{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:10px;background:#15803d;color:#fff}
-#stationAdd svg{width:24px;height:24px}
+#stationAdd,#speakerAdd{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:10px;background:#15803d;color:#fff}
+#stationAdd svg,#speakerAdd svg{width:24px;height:24px}
 #presetEditors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .preset-button{min-height:90px;text-align:left;overflow-wrap:anywhere}
 .preset-button strong{display:block;font-size:12px;color:var(--dim);margin-bottom:8px}
 #presetChoices .action{display:block;width:100%;margin:8px 0;text-align:left;overflow-wrap:anywhere}
 #presetChoices [aria-pressed="true"]{border:1px solid var(--acc)}
-#stationEditError,#presetPickerError{color:#fca5a5}
+#stationEditError,#speakerEditError,#speakerDeleteError,#presetPickerError{color:#fca5a5}
 .settings-head,.settings-actions{display:flex;justify-content:space-between;align-items:center;gap:10px}
 h2{font-size:20px;margin:0}
 dialog:focus,dialog h2[tabindex="-1"]:focus{outline:none}
@@ -695,7 +695,6 @@ dialog:focus,dialog h2[tabindex="-1"]:focus{outline:none}
 .speaker-editor input,.preset-field select{display:block;width:100%;margin-top:5px;padding:11px;border:1px solid #444;
 border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size:16px}
 .remove-speaker{color:#fca5a5}
-#settingsSave{background:var(--accD)}
 #settingsError,#presetsError{color:#fca5a5;font-size:14px}
 .station-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .station-head .sec{margin-bottom:0}
@@ -735,15 +734,37 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 </dialog>
 
 <dialog id="settings" aria-labelledby="settingsTitle">
-<form id="settingsForm">
+<div id="settingsForm">
 <div class="settings-head"><h2 id="settingsTitle" tabindex="-1" autofocus><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 14C15 15.6569 13.6569 17 12 17C10.3431 17 9 15.6569 9 14C9 12.3431 10.3431 11 12 11C13.6569 11 15 12.3431 15 14Z" stroke="currentColor" stroke-width="2"/><path d="M5 7C5 5.11438 5 4.17157 5.58579 3.58579C6.17157 3 7.11438 3 9 3H12H15C16.8856 3 17.8284 3 18.4142 3.58579C19 4.17157 19 5.11438 19 7V12V17C19 18.8856 19 19.8284 18.4142 20.4142C17.8284 21 16.8856 21 15 21H12H9C7.11438 21 6.17157 21 5.58579 20.4142C5 19.8284 5 18.8856 5 17V12V7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 7.01123V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Enceintes</h2><button type="button" id="settingsClose" class="action" aria-label="Fermer"><svg viewBox="0 -0.5 21 21" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-363 -80)"><polygon points="375.0183 90 384 98.554 382.48065 100 373.5 91.446 364.5183 100 363 98.554 371.98065 90 363 81.446 364.5183 80 373.5 88.554 382.48065 80 384 81.446"/></g></svg></button></div>
-<p class="hint">Ajoutez vos enceintes et leurs adresses réseau. L’identifiant Bose (deviceID) est disponible sur http://IP-enceinte:8090/info. Le nom sert dans cette application.</p>
+<div class="station-search">
+<input id="speakerSearch" class="search-field" type="search" placeholder="Rechercher une enceinte" aria-label="Rechercher une enceinte">
+<button type="button" id="speakerAdd" class="action" aria-label="Ajouter une enceinte" title="Ajouter une enceinte"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g stroke-width="0"></g><g stroke-linecap="round" stroke-linejoin="round"></g><g><path d="M11 8C11 7.44772 11.4477 7 12 7C12.5523 7 13 7.44772 13 8V11H16C16.5523 11 17 11.4477 17 12C17 12.5523 16.5523 13 16 13H13V16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16V13H8C7.44771 13 7 12.5523 7 12C7 11.4477 7.44772 11 8 11H11V8Z" fill="currentColor"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M23 12C23 18.0751 18.0751 23 12 23C5.92487 23 1 18.0751 1 12C1 5.92487 5.92487 1 12 1C18.0751 1 23 5.92487 23 12ZM3.00683 12C3.00683 16.9668 7.03321 20.9932 12 20.9932C16.9668 20.9932 20.9932 16.9668 20.9932 12C20.9932 7.03321 16.9668 3.00683 12 3.00683C7.03321 3.00683 3.00683 7.03321 3.00683 12Z" fill="currentColor"></path></g></svg></button>
+</div>
 <div id="speakerEditors"></div>
-<button type="button" id="speakerAdd" class="action">+ Ajouter une enceinte</button>
-<p class="hint">Enregistrer met à jour la configuration locale. Retirer une enceinte de la liste n’arrête pas sa lecture.</p>
+<p class="hint">Les changements sont enregistrés à chaque validation. Retirer une enceinte de la liste n’arrête pas sa lecture.</p>
 <p id="settingsError" role="alert"></p>
-<div class="settings-actions"><button type="button" id="settingsCancel" class="action">Annuler</button><button type="submit" id="settingsSave" class="action">Enregistrer</button></div>
+</div></dialog>
+
+<dialog id="speakerEdit" aria-labelledby="speakerEditTitle">
+<h2 id="speakerEditTitle" tabindex="-1">Modifier une enceinte</h2>
+<form id="speakerForm">
+<fieldset id="speakerFields" class="speaker-editor">
+<label>Nom<input id="speakerName" required maxlength="80" autocomplete="off"></label>
+<label>Adresse IPv4<input id="speakerIp" required maxlength="15" autocomplete="off"></label>
+<label>Identifiant Bose (deviceID)<input id="speakerDeviceID" required maxlength="12" pattern="[0-9a-fA-F]{12}" autocomplete="off"></label>
+<label>Modèle (facultatif)<input id="speakerModel" maxlength="100" autocomplete="off"></label>
+<p class="hint">L’identifiant Bose (deviceID) est disponible sur http://IP-enceinte:8090/info. Le nom sert dans cette application. Enregistrer applique immédiatement les changements.</p>
+<div class="settings-actions"><button type="button" id="speakerCancel" class="action">Annuler</button><button type="submit" id="speakerSave" class="action">Enregistrer</button></div>
+</fieldset>
+<p id="speakerEditError" role="alert"></p>
 </form></dialog>
+
+<dialog id="speakerDelete" aria-labelledby="speakerDeleteTitle">
+<h2 id="speakerDeleteTitle" tabindex="-1" autofocus>Retirer l’enceinte ?</h2>
+<p id="speakerDeleteText"></p>
+<div class="settings-actions"><button type="button" id="speakerDeleteCancel" class="action">Annuler</button><button type="button" id="speakerDeleteConfirm" class="action remove-speaker">Retirer</button></div>
+<p id="speakerDeleteError" role="alert"></p>
+</dialog>
 
 <dialog id="presetsSettings" aria-labelledby="presetsTitle">
 <div id="presetsForm">
@@ -812,13 +833,14 @@ function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');set
 function buildTiles(stations){
   $('grid').replaceChildren();
   stations.forEach(s=>{
-    const b=document.createElement('button');b.className='tile';b.id='st-'+s.id;
-    const h=hue(s.id);
+    const b=document.createElement('button');b.className='tile';b.id='preset-'+s.number;
+    b.stationId=s.id;b.disabled=!s.id;
+    const h=hue(s.id||'preset-'+s.number);
     b.style.background=`linear-gradient(135deg,hsl(${h} 45% 30%),hsl(${h} 55% 16%))`;
     b.innerHTML='<span class="badge">▶ PLAYING</span><span class="preset"></span><span class="nm"></span>';
-    b.querySelector('.preset').textContent=s.numbers.length?'Preset '+s.numbers.join(' / '):'Sans preset';
-    b.querySelector('.nm').textContent=s.note||pretty(s.id);
-    b.onclick=async()=>{if(busy)return;busy=true;touch();
+    b.querySelector('.preset').textContent='Preset '+s.number;
+    b.querySelector('.nm').textContent=s.id?(s.note||pretty(s.id)):'Sans affectation';
+    b.onclick=async()=>{if(busy||!s.id)return;busy=true;touch();
       b.querySelector('.nm').textContent='Starting…';
       disableTargets(true);
       try{await api('/api/play/'+encodeURIComponent(s.id)+targetQuery()+'&volume='+$('vol').value);
@@ -866,9 +888,11 @@ function render(st){
   $('spkList').hidden=target!=='all';
   const selected=st.speakers.find(s=>s.ip===target);
   const mapping=(selected?st.presets?.[selected.name]:st.presets?.default)||{};
-  const stations=st.stations.map(s=>({...s,numbers:Object.keys(mapping)
-    .filter(n=>/^[1-6]$/.test(n)&&mapping[n]===s.id).map(Number).sort((a,b)=>a-b)}))
-    .sort((a,b)=>(a.numbers[0]??99)-(b.numbers[0]??99));
+  const stations=Array.from({length:6},(_,index)=>{
+    const number=index+1;
+    const station=st.stations.find(s=>s.id===mapping[number]);
+    return {number,id:station?.id||null,note:station?.note||''};
+  });
   const signature=JSON.stringify(stations);
   if(signature!==tileSignature){buildTiles(stations);tileSignature=signature}
   $('conn').classList.remove('off');$('connTxt').textContent=
@@ -881,7 +905,7 @@ function render(st){
   $('stop').hidden=!live;
   $('hTitle').textContent=live?(playingStation?(st.stations.find(s=>s.id===playingStation)?.note||pretty(playingStation)):active.length>1?'Plusieurs sources':active[0].title||'En lecture'):'Off';
   $('hSub').textContent=live?'En lecture : '+active.map(s=>s.name).join(', '):'Choisir une enceinte puis une station';
-  st.stations.forEach(s=>$('st-'+s.id).classList.toggle('playing',live&&s.id===playingStation));
+  Array.from($('grid').children).forEach(b=>b.classList.toggle('playing',live&&!!b.stationId&&b.stationId===playingStation));
   st.speakers.forEach(s=>{const r=$('sp-'+s.ip);if(!r)return;
     r.querySelector('.st').classList.toggle('on',s.playStatus=='PLAY_STATE');
     if(idle()&&s.volume!=null)updateVolumeSlider(r.querySelector('input'),s.volume)});
@@ -900,52 +924,90 @@ $('vup').onclick=()=>setGroupVol(+$('vol').value+5);
 $('stop').onclick=async()=>{if(busy)return;busy=true;touch();disableTargets(true);
   try{await api('/api/stop'+targetQuery());toast('Arrêt : '+targetLabel())}
   catch(e){toast('Erreur : '+e.message)}finally{busy=false;disableTargets(false);refresh()}};
-let settingsSaving=false;
-function addSpeakerEditor(name='',speaker={}){
-  const row=document.createElement('fieldset');row.className='speaker-editor';row.originalName=name;
-  for(const [key,label,value] of [['name','Nom',name],['ip','Adresse IPv4',speaker.ip||''],
-    ['deviceID','Identifiant Bose (deviceID)',speaker.deviceID||''],['model','Modèle (facultatif)',speaker.model||'']]){
-    const field=document.createElement('label');field.textContent=label;
-    const input=document.createElement('input');input.name=key;input.value=value;
-    input.required=key!=='model';input.maxLength=key==='name'?80:key==='model'?100:key==='ip'?15:12;
-    if(key==='deviceID')input.pattern='[0-9a-fA-F]{12}';
-    input.autocomplete='off';field.appendChild(input);row.appendChild(field);
+let settingsSaving=false,speakerDrafts=[],speakerEditing=null,speakerDeleting=null;
+const speakerInputs={name:'speakerName',ip:'speakerIp',deviceID:'speakerDeviceID',model:'speakerModel'};
+function editSpeaker(speaker=null){
+  if(settingsSaving)return;
+  speakerEditing=speaker;
+  for(const [key,id] of Object.entries(speakerInputs))$(id).value=speaker?.[key]||'';
+  $('speakerEditTitle').textContent=speaker?'Modifier une enceinte':'Ajouter une enceinte';
+  $('speakerEditError').textContent='';$('speakerEdit').showModal();$('speakerName').focus();
+}
+function renderSpeakerList(){
+  $('speakerEditors').replaceChildren();
+  if(!speakerDrafts.length){
+    const empty=document.createElement('p');empty.className='hint';
+    empty.textContent='Aucune enceinte. Ajoutez votre première enceinte.';$('speakerEditors').appendChild(empty);
   }
-  const remove=document.createElement('button');remove.type='button';remove.className='action remove-speaker';
-  remove.textContent='Retirer';remove.onclick=()=>row.remove();row.appendChild(remove);
-  $('speakerEditors').appendChild(row);
+  for(const speaker of [...speakerDrafts]
+    .sort((a,b)=>a.name.localeCompare(b.name,'fr',{sensitivity:'base',numeric:true}))
+    .filter(s=>matchesStation(s.name,$('speakerSearch').value))){
+    const row=document.createElement('fieldset');row.className='speaker-editor station-row';row.disabled=settingsSaving;
+    const name=document.createElement('strong');name.textContent=speaker.name;row.appendChild(name);
+    const edit=document.createElement('button');edit.type='button';edit.className='action';
+    edit.setAttribute('aria-label','Modifier '+speaker.name);edit.title='Modifier';
+    edit.innerHTML='<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M21.1213 2.70705C19.9497 1.53548 18.0503 1.53547 16.8787 2.70705L15.1989 4.38685L7.29289 12.2928C7.16473 12.421 7.07382 12.5816 7.02986 12.7574L6.02986 16.7574C5.94466 17.0982 6.04451 17.4587 6.29289 17.707C6.54127 17.9554 6.90176 18.0553 7.24254 17.9701L11.2425 16.9701C11.4184 16.9261 11.5789 16.8352 11.7071 16.707L19.5556 8.85857L21.2929 7.12126C22.4645 5.94969 22.4645 4.05019 21.2929 2.87862L21.1213 2.70705ZM18.2929 4.12126C18.6834 3.73074 19.3166 3.73074 19.7071 4.12126L19.8787 4.29283C20.2692 4.68336 20.2692 5.31653 19.8787 5.70705L18.8622 6.72357L17.3068 5.10738L18.2929 4.12126ZM15.8923 6.52185L17.4477 8.13804L10.4888 15.097L8.37437 15.6256L8.90296 13.5112L15.8923 6.52185ZM4 7.99994C4 7.44766 4.44772 6.99994 5 6.99994H10C10.5523 6.99994 11 6.55223 11 5.99994C11 5.44766 10.5523 4.99994 10 4.99994H5C3.34315 4.99994 2 6.34309 2 7.99994V18.9999C2 20.6568 3.34315 21.9999 5 21.9999H16C17.6569 21.9999 19 20.6568 19 18.9999V13.9999C19 13.4477 18.5523 12.9999 18 12.9999C17.4477 12.9999 17 13.4477 17 13.9999V18.9999C17 19.5522 16.5523 19.9999 16 19.9999H5C4.44772 19.9999 4 19.5522 4 18.9999V7.99994Z" fill="currentColor"/></svg>';
+    edit.onclick=()=>editSpeaker(speaker);row.appendChild(edit);
+    const remove=document.createElement('button');remove.type='button';remove.className='action remove-speaker';
+    remove.setAttribute('aria-label','Retirer '+speaker.name);remove.title='Retirer';
+    remove.innerHTML='<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 6H20M16 6L15.7294 5.18807C15.4671 4.40125 15.3359 4.00784 15.0927 3.71698C14.8779 3.46013 14.6021 3.26132 14.2905 3.13878C13.9376 3 13.523 3 12.6936 3H11.3064C10.477 3 10.0624 3 9.70951 3.13878C9.39792 3.26132 9.12208 3.46013 8.90729 3.71698C8.66405 4.00784 8.53292 4.40125 8.27064 5.18807L8 6M18 6V16.2C18 17.8802 18 18.7202 17.673 19.362C17.3854 19.9265 16.9265 20.3854 16.362 20.673C15.7202 21 14.8802 21 13.2 21H10.8C9.11984 21 8.27976 21 7.63803 20.673C7.07354 20.3854 6.6146 19.9265 6.32698 19.362C6 18.7202 6 17.8802 6 16.2V6M14 10V17M10 10V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    remove.onclick=()=>{
+      if(settingsSaving)return;speakerDeleting=speaker;
+      $('speakerDeleteText').textContent='Retirer « '+speaker.name+' » de la configuration ? Sa lecture continue et ses presets sont conservés.';
+      $('speakerDeleteError').textContent='';$('speakerDelete').showModal();
+    };
+    row.appendChild(remove);$('speakerEditors').appendChild(row);
+  }
 }
 function closeSettings(){if(!settingsSaving)return closeDialog($('settings'))}
-$('settingsClose').onclick=closeSettings;$('settingsCancel').onclick=closeSettings;
-$('settings').oncancel=e=>{e.preventDefault();if(!settingsSaving)return closeDialog($('settings'))};
-$('speakerAdd').onclick=()=>addSpeakerEditor();
+$('settingsClose').onclick=closeSettings;
+$('settings').oncancel=e=>{e.preventDefault();return closeSettings()};
+$('speakerAdd').onclick=()=>editSpeaker();
+$('speakerSearch').oninput=renderSpeakerList;
+$('speakerCancel').onclick=()=>{if(!settingsSaving)return closeDialog($('speakerEdit'))};
+$('speakerEdit').oncancel=e=>{e.preventDefault();if(!settingsSaving)return closeDialog($('speakerEdit'))};
+$('speakerDeleteCancel').onclick=()=>{if(!settingsSaving)return closeDialog($('speakerDelete'))};
+$('speakerDelete').oncancel=e=>{e.preventDefault();if(!settingsSaving)return closeDialog($('speakerDelete'))};
+$('speakerDeleteConfirm').onclick=()=>writeSpeakers(speakerDrafts.filter(s=>s!==speakerDeleting),true);
+$('speakerForm').onsubmit=async e=>{
+  e.preventDefault();if(settingsSaving)return;
+  const values=Object.fromEntries(Object.entries(speakerInputs).map(([key,id])=>[key,$(id).value.trim()]));
+  if(speakerDrafts.some(s=>s!==speakerEditing&&s.name===values.name)){
+    $('speakerEditError').textContent='Une enceinte porte déjà ce nom.';return;
+  }
+  const speakers=speakerEditing?speakerDrafts.map(s=>s===speakerEditing?{...s,...values}:s):
+    [...speakerDrafts,{original_name:'',...values}];
+  return writeSpeakers(speakers);
+};
+function setSpeakerConfig(speakers){
+  speakerDrafts=Object.entries(speakers).map(([name,speaker])=>({original_name:name,name,
+    ip:speaker.ip,deviceID:speaker.deviceID,model:speaker.model||''}));
+};
 $('speakersOpen').onclick=async()=>{
   $('settingsMenu').hidePopover();
   if(busy)return;
   $('speakersOpen').disabled=true;
   try{
-    const config=await api('/api/speakers');$('speakerEditors').replaceChildren();
-    Object.entries(config.speakers).forEach(([name,speaker])=>addSpeakerEditor(name,speaker));
-    if(!Object.keys(config.speakers).length)addSpeakerEditor();
+    const config=await api('/api/speakers');
+    setSpeakerConfig(config.speakers);
+    $('speakerSearch').value='';renderSpeakerList();
     $('settingsError').textContent='';$('settings').showModal();
   }catch(e){toast('Erreur : '+e.message)}finally{$('speakersOpen').disabled=false}
 };
-$('settingsForm').onsubmit=async e=>{
-  e.preventDefault();if(settingsSaving)return;
-  const speakers=Array.from($('speakerEditors').children).map(row=>{
-    const speaker={original_name:row.originalName};
-    for(const key of ['name','ip','deviceID','model'])speaker[key]=row.querySelector('[name="'+key+'"]').value.trim();
-    return speaker;
-  });
-  settingsSaving=true;$('settingsSave').disabled=true;$('settingsError').textContent='';
-  Array.from($('speakerEditors').children).forEach(row=>row.disabled=true);
-  $('speakerAdd').disabled=true;
-  try{await api('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speakers})});
-    await closeDialog($('settings'));toast('Enceintes enregistrées');await refresh();
-  }catch(e){$('settingsError').textContent=e.message}
-  finally{settingsSaving=false;$('settingsSave').disabled=false;$('speakerAdd').disabled=false;
-    Array.from($('speakerEditors').children).forEach(row=>row.disabled=false)}
-};
+async function writeSpeakers(speakers,deleting=false){
+  if(settingsSaving)return;
+  const error=$(deleting?'speakerDeleteError':'speakerEditError');
+  settingsSaving=true;error.textContent='';$('speakerFields').disabled=true;
+  $('speakerAdd').disabled=true;$('speakerDeleteConfirm').disabled=true;renderSpeakerList();
+  try{
+    const result=await api('/api/speakers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speakers})});
+    setSpeakerConfig(result.speakers);
+    await closeDialog($(deleting?'speakerDelete':'speakerEdit'));
+    toast(deleting?'Enceinte retirée':'Enceinte enregistrée');await refresh();
+  }catch(e){error.textContent=e.message}
+  finally{settingsSaving=false;$('speakerFields').disabled=false;$('speakerAdd').disabled=false;
+    $('speakerDeleteConfirm').disabled=false;renderSpeakerList()}
+}
 let stationConfig=null,stationEditing=null,stationDeleting=null,stationSaving=false;
 function stationLabel(id,value){return value&&typeof value==='object'?(value.note||pretty(id)):pretty(id)}
 function editStation(id=null){
