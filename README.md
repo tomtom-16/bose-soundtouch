@@ -173,8 +173,11 @@ connexion des boutons indisponible. **⚙ → Enceintes** reprend le même SVG o
 sous la recherche liste les enceintes concernées et distingue une enceinte
 injoignable d'une connexion aux boutons physiques non confirmée : dans ce dernier
 cas, la lecture depuis l'interface reste disponible. Le bouton à icône de lien
-**Connecter**, à gauche de Modifier, permet de réessayer après avoir rallumé
-l'enceinte (son nom apparaît au survol et reste accessible aux lecteurs d'écran). Une panne des seuls
+**Connecter**, visible uniquement pour une enceinte en alerte, à gauche de Modifier,
+permet de réessayer après avoir rallumé
+l'enceinte (son nom apparaît au survol et reste accessible aux lecteurs d'écran).
+Pendant la vérification, un voile léger assombrit l’écran et une icône de chargement
+tourne au centre, sans griser les boutons. Une panne des seuls
 boutons ne bloque pas la lecture depuis l'interface ; une enceinte détectée
 injoignable bloque le lancement depuis les presets de l'accueil pour cette enceinte
 et pour **Toutes**. Les autres enceintes restent utilisables individuellement.

@@ -60,13 +60,15 @@ async function readButtons(){
 }
 async function checkButtons(name){
   if(buttonsChecking)return;
-  buttonsChecking=true;buttonsGeneration++;renderSpeakerList();
+  buttonsChecking=true;buttonsGeneration++;
+  $('buttonsLoading').showModal();
   try{
     buttonsStatus=await api('/api/buttons/check',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify(name===undefined?{}:{name})});
   }catch(e){buttonsStatus={available:false,speakers:{}};toast('Erreur : '+e.message)}
   finally{
     buttonsChecking=false;
+    $('buttonsLoading').close();
     if(currentStatus)render(currentStatus);
     renderSpeakerList();
   }
@@ -264,13 +266,12 @@ function renderSpeakerList(){
     const name=document.createElement('strong');name.textContent=speaker.name;row.appendChild(name);
     if(connectionWarning(speaker))name.appendChild(warningIcon(speaker));
     const retry=document.createElement('button');retry.type='button';retry.className='action reconnect';
-    retry.disabled=buttonsChecking||settingsSaving;
-    retry.title=buttonsChecking?'Connexion en cours…':'Connecter';
+    retry.disabled=settingsSaving;
+    retry.title='Connecter';
     retry.setAttribute('aria-label','Connecter '+speaker.name);
-    retry.setAttribute('aria-busy',String(buttonsChecking));
     retry.innerHTML='<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 10C14 9.44771 13.5523 9 13 9H12.5C9.46243 9 7 11.4624 7 14.5C7 17.5376 9.46243 20 12.5 20H17.5C20.5376 20 23 17.5376 23 14.5C23 12.0091 21.3441 9.90488 19.073 9.22823C18.5098 9.06042 18 9.52887 18 10.1166V10.1683C18 10.6659 18.3745 11.0735 18.8345 11.2634C20.1055 11.788 21 13.0395 21 14.5C21 16.433 19.433 18 17.5 18H12.5C10.567 18 9 16.433 9 14.5C9 12.567 10.567 11 12.5 11H13C13.5523 11 14 10.5523 14 10Z" fill="currentColor"/><path d="M11.5 4C14.5376 4 17 6.46243 17 9.5C17 12.5376 14.5376 15 11.5 15H11C10.4477 15 10 14.5523 10 14C10 13.4477 10.4477 13 11 13H11.5C13.433 13 15 11.433 15 9.5C15 7.567 13.433 6 11.5 6H6.5C4.567 6 3 7.567 3 9.5C3 10.9605 3.89451 12.212 5.16553 12.7366C5.62548 12.9264 6 13.3341 6 13.8317V13.8834C6 14.4711 5.49024 14.9396 4.92699 14.7718C2.65592 14.0951 1 11.9909 1 9.5C1 6.46243 3.46243 4 6.5 4H11.5Z" fill="currentColor"/></svg>';
     retry.onclick=async()=>{await checkButtons(speaker.name);await refresh();renderSpeakerList()};
-    row.appendChild(retry);
+    if(connectionWarning(speaker))row.appendChild(retry);
     const edit=document.createElement('button');edit.type='button';edit.className='action';
     edit.setAttribute('aria-label','Modifier '+speaker.name);edit.title='Modifier';
     edit.innerHTML='<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M21.1213 2.70705C19.9497 1.53548 18.0503 1.53547 16.8787 2.70705L15.1989 4.38685L7.29289 12.2928C7.16473 12.421 7.07382 12.5816 7.02986 12.7574L6.02986 16.7574C5.94466 17.0982 6.04451 17.4587 6.29289 17.707C6.54127 17.9554 6.90176 18.0553 7.24254 17.9701L11.2425 16.9701C11.4184 16.9261 11.5789 16.8352 11.7071 16.707L19.5556 8.85857L21.2929 7.12126C22.4645 5.94969 22.4645 4.05019 21.2929 2.87862L21.1213 2.70705ZM18.2929 4.12126C18.6834 3.73074 19.3166 3.73074 19.7071 4.12126L19.8787 4.29283C20.2692 4.68336 20.2692 5.31653 19.8787 5.70705L18.8622 6.72357L17.3068 5.10738L18.2929 4.12126ZM15.8923 6.52185L17.4477 8.13804L10.4888 15.097L8.37437 15.6256L8.90296 13.5112L15.8923 6.52185ZM4 7.99994C4 7.44766 4.44772 6.99994 5 6.99994H10C10.5523 6.99994 11 6.55223 11 5.99994C11 5.44766 10.5523 4.99994 10 4.99994H5C3.34315 4.99994 2 6.34309 2 7.99994V18.9999C2 20.6568 3.34315 21.9999 5 21.9999H16C17.6569 21.9999 19 20.6568 19 18.9999V13.9999C19 13.4477 18.5523 12.9999 18 12.9999C17.4477 12.9999 17 13.4477 17 13.9999V18.9999C17 19.5522 16.5523 19.9999 16 19.9999H5C4.44772 19.9999 4 19.5522 4 18.9999V7.99994Z" fill="currentColor"/></svg>';
@@ -485,5 +486,6 @@ $('presetsOpen').onclick=async()=>{
     buildPresetEditors();$('presetsSettings').showModal();
   }catch(e){toast('Erreur : '+e.message)}finally{$('presetsOpen').disabled=false}
 };
+$('buttonsLoading').oncancel=event=>event.preventDefault();
 function startInterface(){refresh();checkButtons();setInterval(refresh,5000)}
 startInterface();

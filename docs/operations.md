@@ -152,7 +152,12 @@ confirmées, qui permettent toujours la lecture depuis l'interface. Il invite à
 utiliser Connecter et s'adapte au singulier ou au pluriel ; il disparaît après
 rétablissement des connexions. Le détail est aussi disponible dans l'infobulle du warning
 et son libellé accessible. Le bouton **Connecter** utilise une icône de lien,
-sans texte visible, à gauche du bouton Modifier. La disponibilité
+sans texte visible, à gauche du bouton Modifier, uniquement pour les enceintes en
+alerte. Pendant une vérification (à l’ouverture ou via Connecter), un voile léger
+recouvre l’écran et une icône de chargement tourne au centre, au-dessus des fenêtres
+ouvertes. Les interactions sont temporairement bloquées sans griser les boutons ; le
+voile disparaît aussi en cas d’échec. L’animation est désactivée si le système demande
+de réduire les mouvements. La disponibilité
 de lecture reste indépendante du WebSocket des boutons. Le rafraîchissement
 existant consulte l'état mémorisé du listener, sans lui demander de ping.
 Une enceinte détectée injoignable par l'état de lecture désactive les presets

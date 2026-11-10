@@ -147,3 +147,9 @@ border-radius:8px;background:var(--card);color:var(--txt);font:inherit;font-size
 .station-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .station-head .sec{margin-bottom:0}
 .action:disabled{opacity:.5;cursor:wait}
+#buttonsLoading{inset:0;margin:auto;padding:0;width:64px;height:64px;max-width:none;
+background:transparent;overflow:visible;opacity:1;transform:none;transition:none;outline:none}
+#buttonsLoading::backdrop{background:#0005;opacity:1;transition:none}
+#buttonsLoading svg{display:block;width:64px;height:64px;transform:rotate(0deg) scaleX(-1);animation:buttons-loading 1s linear infinite}
+@keyframes buttons-loading{to{transform:rotate(360deg) scaleX(-1)}}
+@media(prefers-reduced-motion:reduce){#buttonsLoading svg{animation:none}}

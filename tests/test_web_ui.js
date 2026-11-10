@@ -34,12 +34,14 @@ const writes=[];
 let speakerConfig={Living:{ip:'192.0.2.1',deviceID:'AABBCCDDEEFF'}};
 let fail=false;
 let discoverySpeakers=[],waitDiscovery=null;
+let waitButtons=null;
 let buttonsResult={ok:true,available:true,speakers:{}};
 const discovered={name:'Bureau <Bose>',ip:'192.0.2.8',deviceID:'123456ABCDEF',model:'SoundTouch 10'};
 const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},
   Option:function(textContent,value){Object.assign(this,{textContent,value})},
   fetch:async (p,options)=>{requests.push(p);if(options)writes.push(options);
     if((p==='/api/speakers/discover'||p==='/api/speakers/identify')&&waitDiscovery)await waitDiscovery;
+    if(p==='/api/buttons/check'&&waitButtons)await waitButtons;
     if(p==='/api/speakers'&&options&&!fail){
       speakerConfig=Object.fromEntries(JSON.parse(options.body).speakers.map(s=>[s.name,
         {ip:s.ip,deviceID:s.deviceID.toUpperCase(),model:s.model}]));
@@ -109,10 +111,8 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('settings').open,true);
   const row=get('speakerEditors').children[0];
   assert.equal(row.children[0].textContent,'Living');
-  assert.equal(row.children.length,4); // name, connect, edit and remove on one row
+  assert.equal(row.children.length,4); // état des boutons inconnu : warning et Connecter
   assert.equal(row.children[1].attributes['aria-label'],'Connecter Living');
-  assert.ok(row.children[1].innerHTML.includes('<svg'));
-  assert.equal(row.children[1].textContent,'');
   row.children[2].onclick();
   assert.equal(get('speakerEdit').open,true);
   assert.equal(get('speakerDeviceID').value,'AABBCCDDEEFF');
@@ -127,7 +127,7 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('settings').open,true);
   assert.equal(get('speakerEditors').children[0].children[0].textContent,'Salon <test>');
   // The next edit uses the saved name, including after a rename.
-  get('speakerEditors').children[0].children[2].onclick();
+  get('speakerEditors').children[0].children.at(-2).onclick();
   get('speakerName').value='Salon';
   await get('speakerForm').onsubmit({preventDefault(){}});
   assert.equal(JSON.parse(writes.at(-1).body).speakers[0].original_name,'Salon <test>');
@@ -160,13 +160,13 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('speakerEditors').children.length,0);
   get('speakerSearch').value='';get('speakerSearch').oninput();
   const beforeSpeakerDelete=writes.length;
-  get('speakerEditors').children[0].children[3].onclick();
+  get('speakerEditors').children[0].children.at(-1).onclick();
   assert.equal(get('speakerDelete').open,true);
   assert.ok(get('speakerDeleteText').textContent.includes('Bureau 2'));
   await get('speakerDeleteCancel').onclick();
   assert.equal(writes.length,beforeSpeakerDelete);
   assert.equal(get('speakerEditors').children.length,2);
-  get('speakerEditors').children[0].children[3].onclick();
+  get('speakerEditors').children[0].children.at(-1).onclick();
   fail=true;await get('speakerDeleteConfirm').onclick();
   assert.equal(get('speakerDelete').open,true);
   assert.equal(get('speakerDeleteError').textContent,'test failure');
@@ -425,7 +425,17 @@ function render(){vm.runInContext('render(status)',context)}
   assert.ok(get('speakerConnectionNotice').textContent.includes('La lecture depuis l’interface reste disponible.'));
   assert.ok(!get('speakerConnectionNotice').textContent.includes('injoignable'));
   buttonsResult.speakers.Salon.state='connected';
-  await speakerRow.children[1].onclick();
+  let finishButtons;
+  waitButtons=new Promise(resolve=>{finishButtons=resolve});
+  const connecting=speakerRow.children[1].onclick();
+  assert.equal(get('buttonsLoading').open,true);
+  assert.equal(speakerRow.children[1].disabled,false);
+  let prevented=false;
+  get('buttonsLoading').oncancel({preventDefault(){prevented=true}});
+  assert.equal(prevented,true);
+  finishButtons();await connecting;waitButtons=null;
+  assert.equal(get('buttonsLoading').open,false);
+  assert.equal(get('speakerEditors').children[0].children.length,3);
   assert.deepEqual(JSON.parse(writes.at(-1).body),{name:'Salon'});
   assert.equal(get('speakerEditors').children[0].children[0].children.length,0);
   assert.equal(get('speakerConnectionNotice').hidden,true);
@@ -467,8 +477,12 @@ function render(){vm.runInContext('render(status)',context)}
   Object.values(buttonsResult.speakers).forEach(s=>s.state='connected');
   await vm.runInContext('refresh()',context);
   assert.equal(get('speakerConnectionNotice').hidden,true);
+  fail=true;
+  await vm.runInContext("checkButtons('Salon')",context);
+  assert.equal(get('buttonsLoading').open,false); // closes on failure too
+  fail=false;
   vm.runInContext('startInterface()',context);
   await Promise.resolve();await Promise.resolve();
-  assert.equal(requests.filter(p=>p==='/api/buttons/check').length,checksBefore+2);
+  assert.equal(requests.filter(p=>p==='/api/buttons/check').length,checksBefore+3);
   console.log('Web UI: playback, configuration, warning, passive status and manual reconnection passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
