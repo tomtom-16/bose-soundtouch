@@ -34,6 +34,7 @@ const writes=[];
 let speakerConfig={Living:{ip:'192.0.2.1',deviceID:'AABBCCDDEEFF'}};
 let fail=false;
 let discoverySpeakers=[],waitDiscovery=null;
+let buttonsResult={ok:true,available:true,speakers:{}};
 const discovered={name:'Bureau <Bose>',ip:'192.0.2.8',deviceID:'123456ABCDEF',model:'SoundTouch 10'};
 const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},
   Option:function(textContent,value){Object.assign(this,{textContent,value})},
@@ -47,12 +48,13 @@ const context=vm.createContext({document:{getElementById:get,createElement:()=>n
       p==='/api/stations'?{stations:{one:{note:'One',url:'https://example.com/live'}},revision:'revision-1',usages:{one:{direct:[{scope:'default',numbers:['1']}],effective:[{scope:'Living',numbers:['1']}]}}}:
       p==='/api/speakers/discover'?{ok:true,speakers:discoverySpeakers}:
       p==='/api/speakers/identify'?{ok:true,speaker:discovered}:
+      (p==='/api/buttons'||p==='/api/buttons/check')?buttonsResult:
       p==='/api/speakers'?{ok:true,speakers:speakerConfig,revision:'speaker-revision'}:
       p==='/api/presets'?JSON.parse(JSON.stringify({presets:status.presets,stations:status.stations,
         speakers:Object.fromEntries(status.speakers.map(s=>[s.name,{ip:s.ip}]))})):
       p==='/api/status'?status:{ok:true}}},
   setTimeout:()=>0,clearTimeout(){},setInterval(){}});
-vm.runInContext(script.replace('refresh();setInterval(refresh,5000);',''),context);
+vm.runInContext(script.replace('startInterface();',''),context);
 const stations=['four','five','one','two','three','six','extra'].map(id=>({id,note:id}));
 const status={stations,presets:{default:{1:'one',2:'two',3:'three',4:'four',5:'five',6:'six'},Bath:{1:'two',2:'one',3:'three',4:'four',5:'five',6:'six'},Living:{1:'one',2:'two',3:'three',4:'four',5:'five',6:'six'}},
   default_speaker:'Living',speakers:[{name:'Living',ip:'192.0.2.1',volume:20,station:'one',playStatus:'PLAY_STATE'},
@@ -107,8 +109,11 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('settings').open,true);
   const row=get('speakerEditors').children[0];
   assert.equal(row.children[0].textContent,'Living');
-  assert.equal(row.children.length,3); // name and actions, no inline inputs
-  row.children[1].onclick();
+  assert.equal(row.children.length,4); // name, connect, edit and remove on one row
+  assert.equal(row.children[1].attributes['aria-label'],'Connecter Living');
+  assert.ok(row.children[1].innerHTML.includes('<svg'));
+  assert.equal(row.children[1].textContent,'');
+  row.children[2].onclick();
   assert.equal(get('speakerEdit').open,true);
   assert.equal(get('speakerDeviceID').value,'AABBCCDDEEFF');
   get('speakerName').value='Salon <test>';
@@ -122,7 +127,7 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('settings').open,true);
   assert.equal(get('speakerEditors').children[0].children[0].textContent,'Salon <test>');
   // The next edit uses the saved name, including after a rename.
-  get('speakerEditors').children[0].children[1].onclick();
+  get('speakerEditors').children[0].children[2].onclick();
   get('speakerName').value='Salon';
   await get('speakerForm').onsubmit({preventDefault(){}});
   assert.equal(JSON.parse(writes.at(-1).body).speakers[0].original_name,'Salon <test>');
@@ -155,13 +160,13 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('speakerEditors').children.length,0);
   get('speakerSearch').value='';get('speakerSearch').oninput();
   const beforeSpeakerDelete=writes.length;
-  get('speakerEditors').children[0].children[2].onclick();
+  get('speakerEditors').children[0].children[3].onclick();
   assert.equal(get('speakerDelete').open,true);
   assert.ok(get('speakerDeleteText').textContent.includes('Bureau 2'));
   await get('speakerDeleteCancel').onclick();
   assert.equal(writes.length,beforeSpeakerDelete);
   assert.equal(get('speakerEditors').children.length,2);
-  get('speakerEditors').children[0].children[2].onclick();
+  get('speakerEditors').children[0].children[3].onclick();
   fail=true;await get('speakerDeleteConfirm').onclick();
   assert.equal(get('speakerDelete').open,true);
   assert.equal(get('speakerDeleteError').textContent,'test failure');
@@ -398,5 +403,72 @@ function render(){vm.runInContext('render(status)',context)}
   assert.equal(get('speakerIp').value,'192.0.2.9');
   assert.equal(get('speakerDeviceID').value,'');
   assert.ok(get('speakerScanStatus').textContent.includes('Adresse modifiée'));
-  console.log('Web UI: playback, station catalogue CRUD, deletion confirmation, independent global/speaker presets and speaker settings passed');
+  // État WebSocket séparé de la disponibilité de lecture et reprise manuelle.
+  status.speakers=[{name:'Salon',ip:'192.0.2.1',source:'UPNP',volume:20,playStatus:'STANDBY'}];
+  status.presets.Salon={1:'one'};
+  buttonsResult={ok:true,available:true,speakers:{Salon:{ip:'192.0.2.1',state:'disconnected'}}};
+  await vm.runInContext('checkButtons()',context);
+  await vm.runInContext('refresh()',context);
+  vm.runInContext("selectTarget('192.0.2.1')",context);
+  assert.ok(get('target').children[0].children.at(-1).innerHTML.includes('<svg'));
+  assert.ok(get('target').children[0].children.at(-1).title.includes('Boutons déconnectés'));
+  assert.equal(get('preset-1').disabled,false); // WebSocket KO ne bloque pas la radio.
+  speakerConfig={Salon:{ip:'192.0.2.1',deviceID:'AABBCCDDEEFF'}};
+  await get('speakersOpen').onclick();
+  const speakerRow=get('speakerEditors').children[0];
+  assert.equal(speakerRow.children.length,4);
+  assert.ok(speakerRow.children[0].children[0].innerHTML.includes('<svg'));
+  assert.ok(speakerRow.children[0].children[0].title.includes('Boutons déconnectés'));
+  assert.equal(speakerRow.children[1].title,'Connecter');
+  assert.equal(get('speakerConnectionNotice').hidden,false);
+  assert.ok(get('speakerConnectionNotice').textContent.includes('La connexion aux boutons physiques de l’enceinte « Salon »'));
+  assert.ok(get('speakerConnectionNotice').textContent.includes('La lecture depuis l’interface reste disponible.'));
+  assert.ok(!get('speakerConnectionNotice').textContent.includes('injoignable'));
+  buttonsResult.speakers.Salon.state='connected';
+  await speakerRow.children[1].onclick();
+  assert.deepEqual(JSON.parse(writes.at(-1).body),{name:'Salon'});
+  assert.equal(get('speakerEditors').children[0].children[0].children.length,0);
+  assert.equal(get('speakerConnectionNotice').hidden,true);
+  // Le faux DOM ne supprime pas ses enfants lors d'une affectation textContent.
+  assert.equal(vm.runInContext('connectionWarning(status.speakers[0])',context),false);
+  const checksBefore=requests.filter(p=>p==='/api/buttons/check').length;
+  await vm.runInContext('refresh()',context);
+  assert.equal(requests.filter(p=>p==='/api/buttons/check').length,checksBefore);
+  status.speakers[0].source='unreachable';render();
+  assert.equal(get('preset-1').disabled,true);
+  assert.equal(vm.runInContext('connectionLabel(status.speakers[0])',context),'Enceinte injoignable');
+  assert.ok(get('speakerConnectionNotice').textContent.startsWith('L’enceinte « Salon » est injoignable.'));
+  status.speakers.push({name:'Bureau',ip:'192.0.2.2',source:'UPNP',playStatus:'STANDBY'});
+  status.presets.Bureau={1:'one'};
+  get('targetAll').onclick();
+  assert.equal(get('preset-1').disabled,true); // Toutes inclurait l'enceinte injoignable.
+  vm.runInContext("selectTarget('192.0.2.2')",context);
+  assert.equal(get('preset-1').disabled,false);
+  vm.runInContext("selectTarget('192.0.2.1')",context);
+  status.speakers[0].source='UPNP';buttonsResult={ok:true,available:false,speakers:{}};
+  await vm.runInContext('checkButtons()',context);
+  assert.equal(vm.runInContext('connectionLabel(status.speakers[0])',context),'Service des boutons indisponible');
+  assert.equal(get('preset-1').disabled,false);
+  // Le message concerne toutes les enceintes en alerte, même sous un filtre.
+  speakerConfig.Bureau={ip:'192.0.2.2',deviceID:'112233445566'};
+  buttonsResult={ok:true,available:true,speakers:{Salon:{ip:'192.0.2.1',state:'disconnected'},Bureau:{ip:'192.0.2.2',state:'disconnected'}}};
+  await vm.runInContext('refresh()',context);await get('speakersOpen').onclick();
+  assert.ok(get('speakerConnectionNotice').textContent.includes('des enceintes « Salon » et « Bureau » ne sont pas confirmées.'));
+  assert.ok(get('speakerConnectionNotice').textContent.includes('les boutons Connecter correspondants'));
+  get('speakerSearch').value='Salon';get('speakerSearch').oninput();
+  assert.equal(get('speakerEditors').children.length,1);
+  assert.ok(get('speakerConnectionNotice').textContent.includes('« Bureau »'));
+  status.speakers.forEach(s=>s.source='unreachable');render();
+  assert.ok(get('speakerConnectionNotice').textContent.startsWith('Les enceintes « Salon » et « Bureau » sont injoignables.'));
+  status.speakers[1].source='UPNP';render();
+  assert.ok(get('speakerConnectionNotice').textContent.includes('L’enceinte « Salon » est injoignable.'));
+  assert.ok(get('speakerConnectionNotice').textContent.includes('La connexion aux boutons physiques de l’enceinte « Bureau »'));
+  status.speakers.forEach(s=>s.source='UPNP');
+  Object.values(buttonsResult.speakers).forEach(s=>s.state='connected');
+  await vm.runInContext('refresh()',context);
+  assert.equal(get('speakerConnectionNotice').hidden,true);
+  vm.runInContext('startInterface()',context);
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(requests.filter(p=>p==='/api/buttons/check').length,checksBefore+2);
+  console.log('Web UI: playback, configuration, warning, passive status and manual reconnection passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -16,6 +16,7 @@ const path = require('path');
 const http = require('http');
 const dgram = require('dgram');
 const WebSocket = require('ws');
+const {startControl} = require('./listener_control');
 
 const CONFIG_DIR = path.resolve(process.env.BOSE_CONFIG_DIR || path.join(__dirname, 'config'));
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, f))); } catch { return d; } };
@@ -144,11 +145,16 @@ const connections = new Map();
 function connect(name, ip, cfg, entry) {
   if (connections.get(name) !== entry) return;
   const url = 'ws://'+ip+':8080';
-  const ws = new WebSocket(url, 'gabbo');
+  entry.state = 'connecting';
+  const ws = new WebSocket(url, 'gabbo', {handshakeTimeout:3000});
   entry.ws = ws;
-  ws.on('open', () => console.log(`[${name}] listening (${ip})`));
+  ws.on('open', () => {
+    if (entry.ws !== ws) return;
+    entry.state = 'connected';
+    console.log(`[${name}] listening (${ip})`);
+  });
   ws.on('message', async (data) => {
-    if (connections.get(name) !== entry) return;
+    if (connections.get(name) !== entry || entry.ws !== ws) return;
     const s = data.toString();
     const m = s.match(/<nowSelectionUpdated><preset id="(\d)"/);
     if (!m) return;
@@ -181,7 +187,9 @@ function connect(name, ip, cfg, entry) {
     } catch(e){ console.log(`[${name}] play error`, e.message); }
   });
   ws.on('close', () => {
-    if (connections.get(name) !== entry) return;
+    if (connections.get(name) !== entry || entry.ws !== ws) return;
+    entry.state = 'disconnected';
+    if (entry.checking || entry.paused) return;
     console.log(`[${name}] closed; reconnecting in 5s`);
     entry.timer = setTimeout(()=>connect(name,ip,cfg,entry),5000);
   });
@@ -206,5 +214,8 @@ function reloadSpeakers(){
 function main(){
   console.log('Bose button listener starting; watching speaker configuration');
   reloadSpeakers();setInterval(reloadSpeakers,2000);
+  startControl({connections,reloadSpeakers,reconnect:(name,entry)=>{
+    connect(name,entry.ip,JSON.parse(entry.config),entry);
+  }});
 }
 main();

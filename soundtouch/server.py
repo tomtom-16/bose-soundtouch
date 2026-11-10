@@ -3,7 +3,7 @@ import sys, json, re, threading
 import urllib.parse
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from . import config, device, discovery, playback, streaming, watchdog
+from . import buttons, config, device, discovery, playback, streaming, watchdog
 
 
 # Table fermée : aucun chemin fourni par le client n’est ouvert sur disque.
@@ -30,7 +30,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path not in ("/api/speakers", "/api/presets", "/api/stations",
-                             "/api/speakers/discover", "/api/speakers/identify"):
+                             "/api/speakers/discover", "/api/speakers/identify", "/api/buttons/check"):
             return self._json({"ok": False, "error": "Route inconnue."}, 404)
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             return self._json({"ok": False, "error": "JSON requis."}, 415)
@@ -43,6 +43,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if not 0 < length <= 65536: raise ValueError("Taille de requête invalide.")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict): raise ValueError("Objet JSON requis.")
+            if self.path == "/api/buttons/check":
+                name = payload.get('name')
+                if name is not None and (not isinstance(name, str) or
+                        name not in config.load_json(config.SPEAKERS_PATH, {})):
+                    raise ValueError("Enceinte inconnue.")
+                return self._json(buttons.listener_status(check=True, name=name))
             if self.path == "/api/speakers/discover":
                 try: found = discovery.scan_speakers()
                 except OSError:
@@ -77,6 +83,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.end_headers(); self.wfile.write(body); return
         if path == "/api/status":
             return self._json(playback.api_status(cfg))
+        if path == "/api/buttons":
+            return self._json(buttons.listener_status())
         if path == "/api/speakers":
             with config._CONFIG_LOCK:
                 return self._json(config.speaker_snapshot())

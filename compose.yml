@@ -9,6 +9,7 @@ services:
     environment:
       BOSE_CONFIG_DIR: /app/config
       BOSE_DATA_DIR: /app/data
+      BOSE_BUTTONS_PORT: ${BOSE_BUTTONS_PORT:-8078}
     volumes:
       - type: bind
         source: ${BOSE_CONFIG_DIR:-./config}
@@ -32,6 +33,7 @@ services:
       - bose-radio
     environment:
       BOSE_CONFIG_DIR: /app/config
+      BOSE_BUTTONS_PORT: ${BOSE_BUTTONS_PORT:-8078}
     volumes:
       - type: bind
         source: ${BOSE_CONFIG_DIR:-./config}

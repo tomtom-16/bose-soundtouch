@@ -127,6 +127,54 @@ par le listener des boutons. Éviter les commandes répétées rapidement.
 
 ## Boutons et diagnostic
 
+### Connexion des boutons après une coupure
+
+L'ouverture de l'interface déclenche une vérification ponctuelle des WebSockets
+par le listener : attente d'un pong correspondant au ping (trois secondes au
+maximum), puis une seule recréation de connexion si nécessaire, avec le même
+délai maximal de vérification. Les demandes simultanées pour une même enceinte
+partagent la vérification. Aucun ping périodique ni flux audio n'est ajouté.
+
+Si la reprise échoue, la socket est terminée et les tentatives automatiques sont
+suspendues pour cette enceinte. Rallumer l'enceinte, puis utiliser **Connecter**
+dans **⚙ → Enceintes**, ou rouvrir/recharger l'interface. Un changement des réglages
+qui recrée la connexion lève aussi cette suspension. En dehors de cette suspension,
+une fermeture WebSocket détectée conserve la reconnexion automatique après cinq
+secondes. Une coupure silencieuse reste possible tant qu'aucune vérification
+ponctuelle n'est demandée.
+
+L'accueil et le sous-menu Enceintes affichent un SVG de warning orange à droite
+du nom en cas de problème. Chaque enceinte reste sur une seule ligne, sans texte
+de statut supplémentaire. Un message sous la recherche, avant la liste, nomme les
+enceintes concernées, même lorsqu'un filtre de recherche masque certaines lignes.
+Il distingue les enceintes injoignables des connexions aux boutons physiques non
+confirmées, qui permettent toujours la lecture depuis l'interface. Il invite à
+utiliser Connecter et s'adapte au singulier ou au pluriel ; il disparaît après
+rétablissement des connexions. Le détail est aussi disponible dans l'infobulle du warning
+et son libellé accessible. Le bouton **Connecter** utilise une icône de lien,
+sans texte visible, à gauche du bouton Modifier. La disponibilité
+de lecture reste indépendante du WebSocket des boutons. Le rafraîchissement
+existant consulte l'état mémorisé du listener, sans lui demander de ping.
+Une enceinte détectée injoignable par l'état de lecture désactive les presets
+de l'accueil pour cette enceinte et pour **Toutes** ; sélectionner une autre
+enceinte permet de continuer à l'utiliser seule.
+
+Le listener expose son contrôle HTTP uniquement sur `127.0.0.1:8078`, utilisé par
+Python via `GET /api/buttons` et `POST /api/buttons/check` côté interface.
+Le port peut être changé avec `BOSE_BUTTONS_PORT` dans `.env` : il doit être
+identique pour les deux services et libre sur l'hôte. Les scripts lancés
+directement doivent recevoir cette variable dans leur environnement.
+L'arrêt du listener laisse l'interface utilisable et affiche son indisponibilité.
+
+Cette évolution nécessite de reconstruire **les deux images** avec
+`docker compose up -d --build`. Le Dockerfile Node embarque désormais aussi
+`listener_control.js`. Aucun redémarrage des enceintes ni changement de leurs
+présélections internes n'est requis pour le déploiement.
+
+Tests sans matériel : `node tests/test_listener_control.js` complète les suites
+existantes et les tests Python `test_buttons.py`. La réponse ping/pong des Bose
+et la reprise après coupure électrique restent à valider sur Linux/LXC.
+
 ### Recherche d’enceintes depuis l’interface
 
 Dans **⚙ → Enceintes → Ajouter**, **Rechercher sur le réseau** effectue une recherche

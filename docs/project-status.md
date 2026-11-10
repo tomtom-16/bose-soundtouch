@@ -35,6 +35,10 @@ une résolution TuneIn à la demande ; ne pas enregistrer d'URL finale à jeton 
 
 ## Points ouverts
 
+- Valider sur Bose/Linux/LXC le contrôle WebSocket ponctuel à l'ouverture de
+  l'interface et la reprise manuelle dans **⚙ → Enceintes** après coupure électrique.
+  Le contrôle local, les délais, les échecs et la concurrence sont testés avec
+  des sockets simulées et HTTP sur boucle locale, sans validation matérielle.
 - Valider sur Mac puis Linux/LXC la découverte SSDP et la récupération d’identité
   par IP de l’assistant d’ajout d’enceinte. Les tests de développement simulent le
   réseau ; aucun appareil réel n’a été contacté pour cette évolution.
@@ -44,6 +48,27 @@ une résolution TuneIn à la demande ; ne pas enregistrer d'URL finale à jeton 
   La recherche d'un autre flux officiel reste ouverte ; aucun flux permanent,
   préchauffage ni transcodage n'est prévu.
 - Valider sur Linux la stack réorganisée avant de remplacer l'installation actuelle.
+
+## Reconnexion ponctuelle des boutons — 10 novembre 2026
+
+Le listener propose désormais un contrôle HTTP limité à la boucle locale,
+utilisé par Python pour vérifier les WebSockets à l'ouverture de l'interface et
+sur action **Connecter** (icône de lien) dans **⚙ → Enceintes**. Aucun ping périodique n'est
+ajouté. Une connexion qui échoue à la vérification puis à la reconnexion est
+fermée et suspendue jusqu'à une nouvelle demande ou une reconfiguration.
+L'accueil signale les anomalies par une icône près du nom de l'enceinte.
+L'icône utilise le SVG de warning orange également présent à droite du nom
+dans les réglages ; ceux-ci restent sur une ligne, avec Connecter avant Modifier.
+
+Les trois suites JavaScript passent, dont les cas de connexion silencieuse,
+reprise manuelle, concurrence, retrait et événements tardifs d'une ancienne
+socket. Les syntaxes JavaScript et `git diff --check` sont vérifiés.
+Sur Windows, 47 des 48 tests Python passent avec un chemin temporaire complet ;
+le test existant des permissions Unix `0640` échoue sur les permissions Windows.
+Les quatre nouveaux tests Python passent. Docker/Compose n'est pas disponible
+dans cet environnement ; aucune image n'a été construite et aucun service n'a
+été déployé. Ces validations utilisent des simulations et la boucle locale,
+sans contact avec les enceintes ni validation matérielle/Linux/LXC.
 
 Les deux historiques complets et les anciennes sauvegardes restent disponibles
 localement, hors Git. La documentation publique omet les adresses réelles et les

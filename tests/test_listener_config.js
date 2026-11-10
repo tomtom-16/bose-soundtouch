@@ -8,6 +8,7 @@ const files={
   'speakers.json':{Living:{ip:'192.0.2.1'}}
 };
 const sockets=[],timeouts=[],intervals=[];
+let controlOptions;
 class FakeSocket{
   constructor(url){this.url=url;this.handlers={};sockets.push(this)}
   on(event,handler){this.handlers[event]=handler}
@@ -17,7 +18,7 @@ const context=vm.createContext({
   require:name=>name==='fs'?{readFileSync:p=>{
     const value=files[path.basename(p)];if(value===null)throw Error('bad JSON');
     return JSON.stringify(value);
-  }}:name==='ws'?FakeSocket:require(name),
+  }}:name==='ws'?FakeSocket:name==='./listener_control'?{startControl(options){controlOptions=options}}:require(name),
   __dirname:path.resolve(__dirname,'..'),process:{env:{}},console:{log(){}},
   setInterval:fn=>intervals.push(fn),
   setTimeout:fn=>{const timer={fn};timeouts.push(timer);return timer},
@@ -49,4 +50,22 @@ assert.equal(timeouts[0].cancelled,true);
 timeouts[0].fn();assert.equal(sockets.length,3); // obsolete retry is harmless
 files['speakers.json']={New:{ip:'192.0.2.4'}};intervals[0]();
 assert.equal(sockets.length,4); // supports starting from an empty config
-console.log('Listener: reload, removal, rename/IP changes, invalid file and retry cleanup passed');
+(async()=>{
+  const {createControl}=require('../listener_control');
+  const failed=createControl(controlOptions,async()=>false);
+  const timersBefore=timeouts.length;
+  await failed.checkAll('New');
+  assert.equal(controlOptions.connections.get('New').paused,true);
+  assert.equal(controlOptions.connections.get('New').ws,null);
+  const afterFailure=sockets.length;
+  intervals[0]();assert.equal(sockets.length,afterFailure); // reload passif ne relance pas
+  sockets.at(-1).handlers.close(); // fermeture tardive de l'ancienne socket
+  assert.equal(timeouts.length,timersBefore);
+  const recovered=createControl(controlOptions,async ws=>!!ws);
+  await recovered.checkAll('New');
+  assert.equal(controlOptions.connections.get('New').state,'connected');
+  assert.equal(sockets.length,afterFailure+1);
+  sockets.at(-1).handlers.close();
+  assert.equal(timeouts.length,timersBefore+1); // reprise automatique hors suspension
+  console.log('Listener: reload, removal, stale sockets, failed check suspension and manual recovery passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

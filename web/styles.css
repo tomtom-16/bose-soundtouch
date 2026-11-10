@@ -112,6 +112,9 @@ dialog,dialog[open].closing{transform:none}
 .station-row strong{flex:1;min-width:0;overflow-wrap:anywhere}
 .station-row .action{display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:10px}
 .station-row svg{width:24px;height:24px}
+.connection-warning{display:inline-flex;vertical-align:middle;transform:translateY(-2px);color:#f59e0b;margin-left:6px}
+.connection-warning svg{width:20px;height:20px}
+#speakerConnectionNotice{color:#fbbf24;white-space:pre-line}
 .discovery-choice{display:block;width:100%;margin:8px 0;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #stationsError{color:#fca5a5}
 #stationSave,#speakerSave{background:var(--accD)}

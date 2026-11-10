@@ -14,6 +14,7 @@ bose_radio.py            Point d’entrée des commandes Python
 soundtouch/             Modules Python : configuration, Bose, lecture, proxy et API
 web/                    Interface : index.html, styles.css et app.js
 button_listener.js      Écoute des boutons physiques
+listener_control.js     Vérification ponctuelle et contrôle local des connexions
 compose.yml             Stack Linux : proxy + listener
 config/                 Modèles versionnés et configuration locale ignorée
   *.example.json        Modèles à copier pour une nouvelle installation
@@ -164,6 +165,25 @@ Le choix explicite de toutes les enceintes active une lecture synchronisée mêm
 si `sync` vaut `false` (ce réglage reste utilisé par les boutons physiques).
 
 Le proxy et l'API n'ont pas d'authentification : les conserver sur le réseau local.
+À chaque ouverture de l'interface, les connexions des boutons sont vérifiées une
+fois (ping WebSocket ponctuel), puis recréées si nécessaire. Aucun ping périodique
+n'est envoyé. Une icône ⚠ près du nom signale une enceinte injoignable ou une
+connexion des boutons indisponible. **⚙ → Enceintes** reprend le même SVG orange
+à droite du nom, sans ligne de statut supplémentaire par enceinte. Un message
+sous la recherche liste les enceintes concernées et distingue une enceinte
+injoignable d'une connexion aux boutons physiques non confirmée : dans ce dernier
+cas, la lecture depuis l'interface reste disponible. Le bouton à icône de lien
+**Connecter**, à gauche de Modifier, permet de réessayer après avoir rallumé
+l'enceinte (son nom apparaît au survol et reste accessible aux lecteurs d'écran). Une panne des seuls
+boutons ne bloque pas la lecture depuis l'interface ; une enceinte détectée
+injoignable bloque le lancement depuis les presets de l'accueil pour cette enceinte
+et pour **Toutes**. Les autres enceintes restent utilisables individuellement.
+Après un échec de la vérification et de la reconnexion, la socket est fermée et
+les tentatives automatiques sont suspendues jusqu'à une nouvelle ouverture de
+l'interface ou une action **Connecter** (un changement de configuration recrée
+aussi les connexions concernées). Sans ouverture de l'interface, une coupure
+silencieuse peut donc encore empêcher les boutons de fonctionner.
+
 La stack utilise le réseau hôte Linux, notamment pour annoncer une adresse
 accessible aux enceintes. Le Mac sert ici à développer et préparer le dépôt ;
 le déploiement visé reste le serveur Linux/LXC.
